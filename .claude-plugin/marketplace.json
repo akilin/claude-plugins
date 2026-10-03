@@ -1,0 +1,15 @@
+{
+  "name": "akilin-plugins",
+  "description": "Claude Code plugins that make the terminal UI shorter and quieter",
+  "owner": {
+    "name": "akilin",
+    "url": "https://github.com/akilin"
+  },
+  "plugins": [
+    {
+      "name": "better-tool-rows",
+      "source": "./plugins/better-tool-rows",
+      "description": "Shorter, quieter tool rows: relative paths, +/- counts instead of diffs, cut Bash commands and folded Bash output"
+    }
+  ]
+}

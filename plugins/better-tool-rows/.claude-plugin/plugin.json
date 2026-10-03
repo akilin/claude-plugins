@@ -1,0 +1,8 @@
+{
+  "name": "better-tool-rows",
+  "version": "0.1.0",
+  "description": "Shows Read, Edit and Write paths relative to the session directory, Edit/Write results as +/- counts instead of diffs, long Bash commands cut to one line and long Bash output folded",
+  "author": { "name": "akilin", "url": "https://github.com/akilin" },
+  "repository": "https://github.com/akilin/claude-plugins",
+  "types": "./types/index.d.ts"
+}

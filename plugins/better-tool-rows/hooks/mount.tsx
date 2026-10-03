@@ -1,5 +1,7 @@
 import type { RenderPropsOf } from 'claude-code'
-import type { Engine } from 'claude-code/testing'
+import type { Engine, TestBody } from 'claude-code/testing'
+
+type On = Parameters<TestBody>[1]
 
 const VIEWPORT = { columns: 80, rows: 24 }
 
@@ -22,3 +24,20 @@ export const mountResult = ($: Engine, tool: string, props: Partial<RenderPropsO
     props: { tool_use_id: 'toolu_1', tool, output: undefined, isErrored: false, ...props },
     viewport: VIEWPORT,
   })
+
+// The engine beneath draws each row as the text `draw` makes of its props.
+export const stubRow = (on: On, draw: (props: RenderPropsOf['ToolUse']) => string) =>
+  on('ui.render', { component: 'ToolUse' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>{draw(e.props)}</Text>
+  })
+
+// The engine beneath draws each result as `text`.
+export const stubResult = (on: On, text: string) =>
+  on('ui.render', { component: 'ToolResult' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>{text}</Text>
+  })
+
+// The session's project root is `root`.
+export const stubRoot = (on: On, root: string) => on('session.root', () => ({ value: root }))

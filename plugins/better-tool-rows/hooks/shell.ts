@@ -1,23 +1,34 @@
 import { fitWidth, stripControl, textWidth } from './utils'
 
+// Terminal escape sequences: CSI (colours, cursor moves), OSC (titles,
+// hyperlinks) up to its BEL or ST, and the short ones (charset switches and
+// the like).
+const ESCAPE = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b\n]*(?:\x07|\x1b\\)?|[ -/]*[0-~])/g
+
+// A line as a terminal leaves it: each carriage return goes back to its
+// start and the text after it writes over what was there (a progress bar's
+// last state; a CRLF's line unchanged).
+const overwrite = (line: string) => line.split('\r').reduce((shown, part) => part + shown.slice(part.length), '')
+
 // What a Bash call printed, both streams (for a call that failed, the text
-// the model read), as the lines a Text can draw: no colour codes or other
-// control characters, tabs as spaces.
+// the model read), as the lines a Text can draw: no escape sequences or other
+// control characters, tabs as spaces, no trailing blank lines.
 export const shellLines = (output: unknown) => {
   const { stdout, stderr } = (typeof output === 'string' ? { stdout: output } : (output ?? {})) as {
     stdout?: unknown
     stderr?: unknown
   }
-  const text = stripControl(
-    [stdout, stderr]
-      .filter((s): s is string => typeof s === 'string' && s.trim() !== '')
-      .map(s => s.replace(/\n+$/, ''))
-      .join('\n')
-      .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
-      .replace(/\t/g, '  '),
-    '\n',
-  ).replace(/\n+$/, '')
-  return text === '' ? [] : text.split('\n')
+  const lines = [stdout, stderr]
+    .filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+    .map(s => s.replace(/\n+$/, ''))
+    .join('\n')
+    .replace(ESCAPE, '')
+    .split('\n')
+    .map(line => stripControl(overwrite(line).replace(/\t/g, '  ')))
+  while (lines.at(-1) === '') {
+    lines.pop()
+  }
+  return lines
 }
 
 // A command as one row of `room` columns: its lines joined by spaces (a `\`
@@ -30,5 +41,9 @@ export const shortCommand = (command: string, room: number) => {
 }
 
 // A command as a Code can draw it: no control characters but tab and
-// newline, within its 10000 characters.
-export const commandSource = (command: string) => stripControl(command, '\t\n').replace(/\n+$/, '').slice(0, 10000)
+// newline, within its 10000 characters, not cut inside a surrogate pair.
+export const commandSource = (command: string) =>
+  stripControl(command, '\t\n')
+    .replace(/\n+$/, '')
+    .slice(0, 10000)
+    .replace(/[\ud800-\udbff]$/, '')

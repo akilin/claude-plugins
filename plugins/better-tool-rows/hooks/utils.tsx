@@ -1,9 +1,25 @@
+import type { EngineInterface, RenderNode } from 'claude-code'
+
 // How the engine lays out a tool row, which no API reports: `● Name(arg)`,
 // up to GROUP_INDENT columns further in inside a group, and a result line
 // beneath it opening with ROW_GUTTER.
 export const toolLabel = (name: string, arg: string) => `● ${name}(${arg})`
 export const GROUP_INDENT = 6
 export const ROW_GUTTER = '  ⎿  '
+
+// The elements a surface draws with, as `$.ui.resolve(e)` hands them out.
+type Elements = ReturnType<EngineInterface['ui']['resolve']>
+
+// A line beneath a tool row, opening with its gutter.
+export const gutterLine = ({ Box, Text }: Elements, content: RenderNode) => (
+  <Box>
+    <Text dimColor>{ROW_GUTTER}</Text>
+    {content}
+  </Box>
+)
+
+// What a hook draws in place of a result its row already shows.
+export const drawNothing = ({ Box }: Elements) => <Box />
 
 // The surface's width in columns, 80 where it has not been measured.
 export const viewportColumns = (e: { viewport?: { columns: number } }) => e.viewport?.columns ?? 80

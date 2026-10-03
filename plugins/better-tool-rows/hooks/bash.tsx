@@ -2,7 +2,7 @@ import { atom, memberOf, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import { commandSource, shellLines, shortCommand } from './shell'
-import { GROUP_INDENT, ROW_GUTTER, textWidth, toolLabel, viewportColumns, withInput } from './utils'
+import { drawNothing, GROUP_INDENT, gutterLine, ROW_GUTTER, textWidth, toolLabel, viewportColumns, withInput } from './utils'
 
 const isOutputOpen = atom({ plugin: 'better-tool-rows', key: 'isOutputOpen' } as const, false)
 
@@ -20,16 +20,44 @@ export const SHOWN_LINES = 500
 // group's indent.
 export const commandRoom = (columns: number) => columns - textWidth(toolLabel('Bash', '')) - GROUP_INDENT
 
-// Whether a Bash output is long enough to fold.
-const isLong = (output: unknown) => shellLines(output).length > FOLD_OVER
+// Whether a Bash output is one the plugin can draw as the engine would: a
+// finished command's lines, or the text a failed or interrupted call read.
+// Not an interrupted command's, a backgrounded one's, an image, or one whose
+// full output was saved to a file: the engine marks each of those.
+const isPlain = (output: unknown) => {
+  if (typeof output === 'string') {
+    return true
+  }
+  if (typeof output !== 'object' || output === null) {
+    return false
+  }
+  const result = output as { interrupted?: unknown; isImage?: unknown; backgroundTaskId?: unknown; persistedOutputPath?: unknown }
+  return (
+    result.interrupted !== true &&
+    !result.isImage &&
+    result.backgroundTaskId === undefined &&
+    result.persistedOutputPath === undefined
+  )
+}
 
-// Whether a Bash output is one the plugin can draw as the engine would: any
-// lines, or `(No output)` for none, but not an interrupted call's, which the
-// engine marks.
-const isPlain = (output: unknown) => (output as { interrupted?: unknown } | null | undefined)?.interrupted !== true
-
-// Whether a command is cut to fit its row on a surface `columns` wide.
-const isCutAt = (command: string, columns: number) => shortCommand(command, commandRoom(columns)).isCut
+// The lines of a finished Bash call's output that its row draws beneath its
+// fold, the result beneath it then drawing nothing; undefined for an output
+// left to the engine. The row and the result both decide by this, from what
+// both are handed, so an output is never drawn twice or not at all:
+// - a long plain output is always drawn on the row, folded;
+// - a short plain one is when the command, as this session saw the call
+//   made, is cut: the row folds the command above it. The engine draws a
+//   group's output in its row and a standalone row's as its result, so only
+//   a result that knows its command can tell to draw nothing;
+// - any other is the engine's.
+const rowLines = (output: unknown, command: string | null, columns: number) => {
+  if (!isPlain(output)) {
+    return undefined
+  }
+  const lines = shellLines(output)
+  const isCut = command !== null && shortCommand(command, commandRoom(columns)).isCut
+  return lines.length > FOLD_OVER || isCut ? lines : undefined
+}
 
 export const registerBash: Register = on => {
   // Each Bash call's command is kept by its tool_use_id as it is made.
@@ -42,55 +70,58 @@ export const registerBash: Register = on => {
   })
 
   // A Bash row's command fits on its line, cut with `…` when it is longer.
-  // A finished call whose output is longer than FOLD_OVER lines has it folded
-  // behind `▸ 12 lines` beneath its row, the full command first when it was
-  // cut (`▸ command, 12 lines`); a cut command with a short output folds the
-  // command alone (`▸ command`) and draws the output open beneath the fold,
-  // so the command opens above it. Pressing the fold opens it (`▾ ...`) and
-  // pressing again folds it. Inside a group the engine draws a call's output
-  // in its row and standalone beneath it, so an output drawn here is kept
-  // from the engine either way; a short one only when it is plain lines and
-  // its call this session saw made, whose result beneath knows its command
-  // to draw nothing; `(No output)` for an empty one. An interrupted one the
-  // engine draws as usual.
+  // Beneath the row of a finished call, a fold:
+  // - `▸ 12 lines` over a long output;
+  // - `▸ command, 12 lines` over a long output of a cut command, the full
+  //   command drawn first when it opens;
+  // - `▸ command` for a cut command with a short output, the output drawn
+  //   open beneath the fold (`(No output)` for none) when the row draws it,
+  //   and the full command opening above it.
+  // Pressing the fold opens it (`▾ ...`) and pressing again folds it.
   on('ui.render', { component: 'ToolUse', props: { tool: 'Bash' } }, async ($, e, next) => {
     const input = e.props.input as { command?: unknown } | undefined
     if (typeof input?.command !== 'string') {
       return next(e)
     }
     const command = input.command
-    const { text, isCut } = shortCommand(command, commandRoom(viewportColumns(e)))
+    const columns = viewportColumns(e)
+    const { text, isCut } = shortCommand(command, commandRoom(columns))
     const short = withInput(e, { command: text })
-    const isFolded = isLong(e.props.output)
-    if (e.props.isRunning || (!isCut && !isFolded)) {
+    if (e.props.isRunning) {
       return next(short)
     }
-    const isDrawnHere =
-      isFolded ||
-      (isPlain(e.props.output) &&
-        !e.props.isInterrupted &&
-        (await read($, memberOf(commandOf, { requestId: e.props.tool_use_id }))) === command)
-    const lines = isDrawnHere ? shellLines(e.props.output) : []
+    const lines = rowLines(e.props.output, await read($, memberOf(commandOf, { requestId: e.props.tool_use_id })), columns)
+    if (!isCut && lines === undefined) {
+      return next(short)
+    }
 
     const isOpenRef = memberOf(isOutputOpen, e)
     const isOpen = await read($, isOpenRef)
-    const { Box, Button, Code, Text } = $.ui.resolve(e)
-    const shown = isOpen || !isFolded ? lines.slice(0, SHOWN_LINES) : []
-    const isEmpty = isDrawnHere && lines.length === 0
-    const label = [isCut && 'command', isFolded && `${lines.length} lines`].filter(part => part !== false).join(', ')
+    const lineCount = lines?.length ?? 0
+    const isFolded = lineCount > FOLD_OVER
+    const shown = lines === undefined || (isFolded && !isOpen) ? [] : lines.slice(0, SHOWN_LINES)
+    const hiddenCount = shown.length > 0 ? lineCount - shown.length : 0
+    const isEmpty = lines?.length === 0
+    // No fold over a short output of a command that fits its row, which the
+    // row draws when a plugin above made the call with a longer command.
+    const hasFold = isCut || isFolded
+    const label = isFolded ? `${isCut ? 'command, ' : ''}${lineCount} lines` : 'command'
+    const elements = $.ui.resolve(e)
+    const { Box, Button, Code, Text } = elements
     return (
       <Box flexDirection="column">
-        {await next(isDrawnHere ? { ...short, props: { ...short.props, output: undefined } } : short)}
-        <Box>
-          <Text dimColor>{ROW_GUTTER}</Text>
-          <Button
-            key="output"
-            plain
-            dimColor
-            label={`${isOpen ? '▾' : '▸'} ${label}`}
-            onPress={() => update($, isOpenRef, was => !was)}
-          />
-        </Box>
+        {await next(lines === undefined ? short : { ...short, props: { ...short.props, output: undefined } })}
+        {hasFold &&
+          gutterLine(
+            elements,
+            <Button
+              key="output"
+              plain
+              dimColor
+              label={`${isOpen ? '▾' : '▸'} ${label}`}
+              onPress={() => update($, isOpenRef, was => !was)}
+            />,
+          )}
         {(isOpen || shown.length > 0 || isEmpty) && (
           <Box flexDirection="column" paddingLeft={ROW_GUTTER.length}>
             {isOpen && isCut && (
@@ -104,9 +135,7 @@ export const registerBash: Register = on => {
                 {line === '' ? ' ' : line}
               </Text>
             ))}
-            {shown.length > 0 && lines.length > shown.length && (
-              <Text dimColor>… +{lines.length - shown.length} lines</Text>
-            )}
+            {hiddenCount > 0 && <Text dimColor>… +{hiddenCount} lines</Text>}
             {isEmpty && <Text dimColor>(No output)</Text>}
           </Box>
         )}
@@ -114,17 +143,9 @@ export const registerBash: Register = on => {
     )
   })
 
-  // The Bash row above draws a long output folded, and a cut command's short
-  // plain one beneath its fold, so the result beneath it draws nothing; any
-  // other the engine draws as usual.
+  // The output a Bash row draws, its result draws nothing in place of.
   on('ui.render', { component: 'ToolResult', props: { tool: 'Bash' } }, async ($, e, next) => {
     const command = await read($, memberOf(commandOf, { requestId: e.props.tool_use_id }))
-    const isDrawnAbove =
-      isLong(e.props.output) || (isPlain(e.props.output) && command !== null && isCutAt(command, viewportColumns(e)))
-    if (!isDrawnAbove) {
-      return next(e)
-    }
-    const { Box } = $.ui.resolve(e)
-    return <Box />
+    return rowLines(e.props.output, command, viewportColumns(e)) === undefined ? next(e) : drawNothing($.ui.resolve(e))
   })
 }

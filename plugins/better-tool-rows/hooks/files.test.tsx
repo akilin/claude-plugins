@@ -1,7 +1,7 @@
 import { expect, test, type TestBody } from 'claude-code/testing'
 
 import { changeCounts, rowLabel } from './files'
-import { mountResult, mountRow } from './mount'
+import { mountResult, mountRow, stubResult, stubRoot, stubRow } from './mount'
 import { textWidth } from './utils'
 
 const ROOT = '/home/me/project'
@@ -31,10 +31,38 @@ test('the row label is the text the engine draws', () => {
   expect(rowLabel('Write', {}, 'potato.md')).toBe('● Write(potato.md)')
 })
 
-test('a label is as wide as the columns it takes', () => {
-  expect(textWidth('● Update(a.md)')).toBe(14)
-  expect(textWidth('笔记.md')).toBe(7)
-  expect(textWidth('é')).toBe(1)
+for (const tool of ['Read', 'Edit', 'Write']) {
+  test(`the engine draws the ${tool} row with the shorter path`, async ($, on) => {
+    stubRoot(on, ROOT)
+    const drawn: unknown[] = []
+    stubRow(on, props => {
+      drawn.push(props.input)
+      return 'row'
+    })
+
+    const ui = await mountRow($, tool, { input: { file_path: `${ROOT}/.devcontainer/Dockerfile`, offset: 15, limit: 8 } })
+    await ui.unmount()
+
+    expect(drawn).toEqual([{ file_path: '.devcontainer/Dockerfile', offset: 15, limit: 8 }])
+  })
+}
+
+test('paths stay relative to the folder the session started in after the project root moves', async ($, on) => {
+  let root = ROOT
+  on('session.root', () => ({ value: root }))
+  const drawn: unknown[] = []
+  stubRow(on, props => {
+    drawn.push((props.input as { file_path: string }).file_path)
+    return 'row'
+  })
+
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+  root = `${ROOT}/sub`
+  const ui = await mountRow($, 'Read', { input: { file_path: `${ROOT}/sub/a.md` } })
+  await ui.unmount()
+
+  expect(drawn).toEqual(['sub/a.md'])
 })
 
 // A finished edit that replaced one line.
@@ -43,15 +71,9 @@ const edited = { type: 'update', filePath: `${ROOT}/a.md`, content: 'x', structu
 // Mounts a finished call's row and its result, the engine beneath drawing
 // the path it was handed for the row and `diff` for the result.
 const draw = async (...[$, on, tool, output]: [...Parameters<TestBody>, tool: string, output: unknown]) => {
-  on('session.root', () => ({ value: ROOT }))
-  on('ui.render', { component: 'ToolUse' }, ($, e) => {
-    const { Text } = $.ui.resolve(e)
-    return <Text>{(e.props.input as { file_path: string }).file_path}</Text>
-  })
-  on('ui.render', { component: 'ToolResult' }, ($, e) => {
-    const { Text } = $.ui.resolve(e)
-    return <Text>diff</Text>
-  })
+  stubRoot(on, ROOT)
+  stubRow(on, props => (props.input as { file_path: string }).file_path)
+  stubResult(on, 'diff')
 
   const row = await mountRow($, tool, { input: { file_path: `${ROOT}/a.md` }, output })
   const drawn = {
@@ -101,11 +123,8 @@ test('a running edit shows the path alone', async ($, on) => {
 })
 
 test('a failed edit is drawn by the engine as usual', async ($, on) => {
-  on('session.root', () => ({ value: ROOT }))
-  on('ui.render', { component: 'ToolResult' }, ($, e) => {
-    const { Text } = $.ui.resolve(e)
-    return <Text>error</Text>
-  })
+  stubRoot(on, ROOT)
+  stubResult(on, 'error')
 
   const result = await mountResult($, 'Edit', { output: 'String not found', isErrored: true })
   const error = await result.find({ type: 'Text', text: 'error' })
@@ -114,16 +133,31 @@ test('a failed edit is drawn by the engine as usual', async ($, on) => {
   expect(error).toBeDefined()
 })
 
-test('counts that would not fit after a long path go on a line beneath the row', async ($, on) => {
-  on('session.root', () => ({ value: ROOT }))
-  on('ui.render', { component: 'ToolUse' }, ($, e) => {
-    const { Text } = $.ui.resolve(e)
-    return <Text>row</Text>
-  })
-  const file_path = `/tmp/${'deep/'.repeat(20)}a.md`
+// Mounts an Edit row of `file_path`, and whether its counts went on a line
+// beneath it.
+const countsBeneath = async (...[$, on, file_path]: [...Parameters<TestBody>, file_path: string]) => {
+  stubRoot(on, ROOT)
+  stubRow(on, () => 'row')
   const ui = await mountRow($, 'Edit', { input: { file_path }, output: edited })
-  expect(await ui.find({ type: 'Text', text: '  ⎿  ' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^\+1$/ })).toMatchObject({ props: { color: 'success' } })
   expect(await ui.find({ type: 'Text', text: /^-1$/ })).toMatchObject({ props: { color: 'error' } })
+  const gutter = await ui.find({ type: 'Text', text: '  ⎿  ' })
   await ui.unmount()
+  return gutter !== undefined
+}
+
+test('counts that would not fit after a long path go on a line beneath the row', async ($, on) => {
+  expect(await countsBeneath($, on, `/tmp/${'deep/'.repeat(20)}a.md`)).toBe(true)
+})
+
+test('counts that would not fit after a path inside a group go on a line beneath the row', async ($, on) => {
+  // `● Update(/xx…x.md)` 72 columns wide: ` +1 -1` fits on an 80 column
+  // line, but not after a group's indent.
+  const file_path = `/${'x'.repeat(72 - textWidth('● Update(/.md)'))}.md`
+  expect(textWidth(rowLabel('Edit', {}, file_path))).toBe(72)
+  expect(await countsBeneath($, on, file_path)).toBe(true)
+})
+
+test('counts that fit after the path are laid on the row', async ($, on) => {
+  expect(await countsBeneath($, on, `${ROOT}/a.md`)).toBe(false)
 })

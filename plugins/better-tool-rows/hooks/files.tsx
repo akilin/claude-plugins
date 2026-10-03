@@ -1,12 +1,25 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
-import { ROW_GUTTER, shortPath, textWidth, toolLabel, viewportColumns, withInput } from './utils'
+import {
+  drawNothing,
+  GROUP_INDENT,
+  gutterLine,
+  shortPath,
+  textWidth,
+  toolLabel,
+  viewportColumns,
+  withInput,
+} from './utils'
 
 // The session's project root when the plugin first started in it: the folder
 // Claude Code was started in, which the terminal resolves ctrl+click from.
 // Kept in the session's state, so a reload does not take a moved root.
 const startRoot = atom({ plugin: 'better-tool-rows', key: 'startRoot' } as const, null)
+
+// The root paths are shown relative to: the one at the start, or the project
+// root as it is now while the start is unrecorded.
+const rootOf = async ($: EngineInterface) => (await read($, startRoot)) ?? (await $.session.root())
 
 // The render event with its file_path relative to `root`, and that path;
 // undefined for an input without one.
@@ -76,17 +89,16 @@ export const registerFiles: Register = on => {
     return next(e)
   })
 
-  // The engine draws its own Read row; it is only handed the shorter path
-  // (relative to the project root as it is now, while the start is unrecorded).
+  // The engine draws its own Read row; it is only handed the shorter path.
   on('ui.render', { component: 'ToolUse', props: { tool: 'Read' } }, async ($, e, next) => {
-    const short = withShortPath(e, (await read($, startRoot)) ?? (await $.session.root()))
+    const short = withShortPath(e, await rootOf($))
     return next(short ? short.e : e)
   })
 
   for (const tool of ['Edit', 'Write']) {
     on('ui.render', { component: 'ToolUse', props: { tool } }, async ($, e, next) => {
       // As a Read row, then the counts.
-      const short = withShortPath(e, (await read($, startRoot)) ?? (await $.session.root()))
+      const short = withShortPath(e, await rootOf($))
       if (!short) {
         return next(e)
       }
@@ -100,8 +112,10 @@ export const registerFiles: Register = on => {
       // `Update(potato.md) +1 -1`, a side left out when it is zero. The
       // engine's row is as wide as the line and opens with a blank line, so the
       // counts are laid over its last line, 1 column past the end of its text.
-      // A label too long for the line wraps, and the counts go beneath it.
-      const { Box, Text } = $.ui.resolve(e)
+      // A label too long for the line (less a group's indent) wraps, and the
+      // counts go beneath it.
+      const elements = $.ui.resolve(e)
+      const { Box, Text } = elements
       const sides = [
         { text: `+${counts.added}`, color: 'success' as const, isShown: counts.added > 0 },
         { text: `-${counts.removed}`, color: 'error' as const, isShown: counts.removed > 0 },
@@ -118,14 +132,11 @@ export const registerFiles: Register = on => {
       )
       const labelWidth = textWidth(rowLabel(tool, e.props.input as { old_string?: unknown }, short.path))
       const countsWidth = textWidth(sides.map(side => side.text).join(' '))
-      if (labelWidth + 1 + countsWidth > viewportColumns(e)) {
+      if (labelWidth + 1 + countsWidth > viewportColumns(e) - GROUP_INDENT) {
         return (
           <Box flexDirection="column">
             {row}
-            <Box>
-              <Text dimColor>{ROW_GUTTER}</Text>
-              {countsText}
-            </Box>
+            {gutterLine(elements, countsText)}
           </Box>
         )
       }
@@ -141,11 +152,7 @@ export const registerFiles: Register = on => {
 
     // The counts are on the row, so the result beneath it draws nothing.
     on('ui.render', { component: 'ToolResult', props: { tool } }, ($, e, next) => {
-      if (!countsOf(e.props.isErrored, e.props.output)) {
-        return next(e)
-      }
-      const { Box } = $.ui.resolve(e)
-      return <Box />
+      return countsOf(e.props.isErrored, e.props.output) ? drawNothing($.ui.resolve(e)) : next(e)
     })
   }
 }

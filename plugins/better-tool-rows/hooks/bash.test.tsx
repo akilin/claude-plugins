@@ -1,8 +1,8 @@
 import type { RenderPropsOf } from 'claude-code'
 import { expect, test, type TestBody } from 'claude-code/testing'
 
-import { commandRoom, FOLD_OVER } from './bash'
-import { mountResult, mountRow, stubResult, stubRow } from './mount'
+import { commandRoom, FOLD_OVER, withoutDeletions } from './bash'
+import { mountResult, mountRow, stubResult, stubRoot, stubRow } from './mount'
 import { GROUP_INDENT, textWidth, toolLabel } from './utils'
 
 const LONG = `echo ${'x'.repeat(200)} && \\\n  echo done`
@@ -241,3 +241,60 @@ for (const [what, { output, ...props }] of Object.entries(OUTPUTS)) {
     }
   }
 }
+
+// A command that deleted `/repo/lorem.txt` (10 lines) and edited `/repo/kept.txt`.
+const deletion = (withEdit: boolean) => ({
+  ...numbers(0),
+  bashEditDiff: {
+    files: [
+      {
+        filePath: '/repo/lorem.txt',
+        hunks: [{ oldStart: 1, oldLines: 10, newStart: 0, newLines: 0, lines: Array.from({ length: 10 }, (_, i) => `-line ${i}`) }],
+        deleted: true as const,
+      },
+      ...(withEdit ? [{ filePath: '/repo/kept.txt', hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-a', '+b'] }] }] : []),
+    ],
+    moreFiles: 0,
+  },
+})
+
+test('withoutDeletions takes deleted files out of the diff and counts their lines', () => {
+  const alone = withoutDeletions(deletion(false))
+  expect(alone.deleted).toEqual([{ path: '/repo/lorem.txt', removed: 10 }])
+  expect('bashEditDiff' in (alone.output as object)).toBe(false)
+
+  const withEdit = withoutDeletions(deletion(true))
+  expect((withEdit.output as { bashEditDiff: { files: { filePath: string }[] } }).bashEditDiff.files.map(f => f.filePath)).toEqual([
+    '/repo/kept.txt',
+  ])
+
+  expect(withoutDeletions(numbers(2))).toEqual({ output: numbers(2), deleted: [] })
+  expect(withoutDeletions('text').output).toBe('text')
+})
+
+test('a deleted file is a line beneath the row, and the engine is not handed its contents', async ($, on) => {
+  stubRoot(on, '/repo')
+  const handed: unknown[] = []
+  stubRow(on, ({ output }) => {
+    handed.push(output)
+    return 'row'
+  })
+  const ui = await mountRow($, 'Bash', { input: { command: 'rm lorem.txt' }, output: deletion(true) })
+  expect(await ui.find({ type: 'Text', text: 'Deleted lorem.txt -10' })).toBeDefined()
+  const files = (handed.at(-1) as { bashEditDiff: { files: { filePath: string }[] } }).bashEditDiff.files
+  expect(files.map(f => f.filePath)).toEqual(['/repo/kept.txt'])
+  await ui.unmount()
+})
+
+test('the result beneath a deletion is not handed the deleted contents', async ($, on) => {
+  const handed: unknown[] = []
+  on('ui.render', { component: 'ToolResult' }, ($, e) => {
+    handed.push(e.props.output)
+    const { Text } = $.ui.resolve(e)
+    return <Text>result</Text>
+  })
+  const ui = await mountResult($, 'Bash', { output: deletion(false) })
+  expect(await ui.find({ type: 'Text', text: 'result' })).toBeDefined()
+  expect('bashEditDiff' in (handed.at(-1) as object)).toBe(false)
+  await ui.unmount()
+})

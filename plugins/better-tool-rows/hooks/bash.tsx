@@ -2,13 +2,26 @@ import { atom, memberOf, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import { commandSource, shellLines, shortCommand } from './shell'
-import { drawNothing, GROUP_INDENT, gutterLine, ROW_GUTTER, textWidth, toolLabel, viewportColumns, withInput } from './utils'
+import {
+  drawNothing,
+  GROUP_INDENT,
+  gutterLine,
+  ROW_GUTTER,
+  shortPath,
+  textWidth,
+  toolLabel,
+  viewportColumns,
+  withInput,
+} from './utils'
 
 const isOutputOpen = atom({ plugin: 'better-tool-rows', key: 'isOutputOpen' } as const, false)
 
 // The command each Bash call was made with, for the result beneath its row,
 // which is not handed the call's input.
 const commandOf = atom({ plugin: 'better-tool-rows', key: 'command' } as const, null)
+
+// The project root paths are shown relative to, as files.tsx records it.
+const startRoot = atom({ plugin: 'better-tool-rows', key: 'startRoot' } as const, null)
 
 // The most lines an output shows as the engine draws it; a longer one folds.
 export const FOLD_OVER = 5
@@ -59,6 +72,29 @@ const rowLines = (output: unknown, command: string | null, columns: number) => {
   return lines.length > FOLD_OVER || isCut ? lines : undefined
 }
 
+type EditDiff = { files: { filePath: string; hunks: { lines: string[] }[]; deleted?: true }[]; moreFiles?: number }
+
+// A Bash output without the files its command deleted in its diff, which the
+// engine draws as every line each one had, and those files with the lines
+// they had. The diff goes with them when nothing else is left in it.
+export const withoutDeletions = (output: unknown) => {
+  const diff = (output as { bashEditDiff?: EditDiff } | null)?.bashEditDiff
+  if (typeof output !== 'object' || output === null || !Array.isArray(diff?.files) || !diff.files.some(file => file.deleted)) {
+    return { output, deleted: [] }
+  }
+  const kept = diff.files.filter(file => !file.deleted)
+  const { bashEditDiff: _, ...rest } = output as { bashEditDiff: EditDiff }
+  return {
+    output: kept.length === 0 && !diff.moreFiles ? rest : { ...output, bashEditDiff: { ...diff, files: kept } },
+    deleted: diff.files
+      .filter(file => file.deleted)
+      .map(file => ({
+        path: file.filePath,
+        removed: file.hunks.flatMap(hunk => hunk.lines).filter(line => line.startsWith('-')).length,
+      })),
+  }
+}
+
 export const registerBash: Register = on => {
   // Each Bash call's command is kept by its tool_use_id as it is made.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
@@ -86,13 +122,36 @@ export const registerBash: Register = on => {
     const command = input.command
     const columns = viewportColumns(e)
     const { text, isCut } = shortCommand(command, commandRoom(columns))
-    const short = withInput(e, { command: text })
+    const withCommand = withInput(e, { command: text })
     if (e.props.isRunning) {
-      return next(short)
+      return next(withCommand)
     }
-    const lines = rowLines(e.props.output, await read($, memberOf(commandOf, { requestId: e.props.tool_use_id })), columns)
+    const { output, deleted } = withoutDeletions(e.props.output)
+    const short = { ...withCommand, props: { ...withCommand.props, output } }
+    const lines = rowLines(output, await read($, memberOf(commandOf, { requestId: e.props.tool_use_id })), columns)
+    const elements = $.ui.resolve(e)
+    const { Box, Button, Code, Text } = elements
+
+    // A file the command deleted, as `Deleted lorem.txt -10` beneath the row.
+    const root = deleted.length > 0 ? ((await read($, startRoot)) ?? (await $.session.root())) : ''
+    const deletedLines = deleted.map(file => (
+      <Box key={`deleted:${file.path}`}>
+        {gutterLine(
+          elements,
+          <Text>
+            Deleted {shortPath(file.path, root)}
+            {file.removed > 0 && <Text color="error"> -{file.removed}</Text>}
+          </Text>,
+        )}
+      </Box>
+    ))
     if (!isCut && lines === undefined) {
-      return next(short)
+      return deleted.length === 0 ? next(short) : (
+        <Box flexDirection="column">
+          {await next(short)}
+          {deletedLines}
+        </Box>
+      )
     }
 
     const isOpenRef = memberOf(isOutputOpen, e)
@@ -106,11 +165,10 @@ export const registerBash: Register = on => {
     // row draws when a plugin above made the call with a longer command.
     const hasFold = isCut || isFolded
     const label = isFolded ? `${isCut ? 'command, ' : ''}${lineCount} lines` : 'command'
-    const elements = $.ui.resolve(e)
-    const { Box, Button, Code, Text } = elements
     return (
       <Box flexDirection="column">
         {await next(lines === undefined ? short : { ...short, props: { ...short.props, output: undefined } })}
+        {deletedLines}
         {hasFold &&
           gutterLine(
             elements,
@@ -143,9 +201,13 @@ export const registerBash: Register = on => {
     )
   })
 
-  // The output a Bash row draws, its result draws nothing in place of.
+  // The output a Bash row draws, its result draws nothing in place of; the
+  // engine draws the rest without the files the row says were deleted.
   on('ui.render', { component: 'ToolResult', props: { tool: 'Bash' } }, async ($, e, next) => {
     const command = await read($, memberOf(commandOf, { requestId: e.props.tool_use_id }))
-    return rowLines(e.props.output, command, viewportColumns(e)) === undefined ? next(e) : drawNothing($.ui.resolve(e))
+    const { output } = withoutDeletions(e.props.output)
+    return rowLines(output, command, viewportColumns(e)) === undefined
+      ? next({ ...e, props: { ...e.props, output } })
+      : drawNothing($.ui.resolve(e))
   })
 }

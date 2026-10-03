@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { shortPath, textWidth } from './utils'
+import { fitWidth, shortPath, stripControl, textWidth } from './utils'
 
 const ROOT = '/home/me/project'
 
@@ -26,4 +26,23 @@ test('a label is as wide as the columns it takes', () => {
   expect(textWidth('● Update(a.md)')).toBe(14)
   expect(textWidth('笔记.md')).toBe(7)
   expect(textWidth('é')).toBe(1)
+})
+
+test('an emoji is as wide as a terminal draws it', () => {
+  expect(textWidth('✅')).toBe(2)
+  expect(textWidth('✓')).toBe(1)
+  expect(textWidth('\u2764')).toBe(1)
+  expect(textWidth('\u2764\ufe0f')).toBe(2)
+  expect(textWidth('👨\u200d👩\u200d👧')).toBe(2)
+  expect(textWidth('🀄🈚')).toBe(4)
+})
+
+test('a fit never ends past its room, nor splits a joined emoji', () => {
+  expect(fitWidth('a\u2764\ufe0f', 2)).toBe('a\u2764')
+  expect(fitWidth('👨\u200d👩\u200d👧b', 2)).toBe('👨\u200d👩\u200d👧')
+})
+
+test('control characters and bidi overrides are stripped', () => {
+  expect(stripControl('a\x1b\x9bb\u202ec\u2066d\u2069')).toBe('abcd')
+  expect(stripControl('a\tb\nc', '\t\n')).toBe('a\tb\nc')
 })

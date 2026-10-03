@@ -268,6 +268,12 @@ test('withoutDeletions takes deleted files out of the diff and counts their line
     '/repo/kept.txt',
   ])
 
+  const more = withoutDeletions({ ...deletion(false), bashEditDiff: { ...deletion(false).bashEditDiff, moreFiles: 3 } })
+  expect((more.output as { bashEditDiff: { files: unknown[]; moreFiles: number } }).bashEditDiff).toEqual({ files: [], moreFiles: 3 })
+
+  const noHunks = { ...numbers(0), bashEditDiff: { files: [{ filePath: '/repo/a.txt', deleted: true }] } }
+  expect(withoutDeletions(noHunks).deleted).toEqual([{ path: '/repo/a.txt', removed: 0 }])
+
   expect(withoutDeletions(numbers(2))).toEqual({ output: numbers(2), deleted: [] })
   expect(withoutDeletions('text').output).toBe('text')
 })
@@ -296,5 +302,13 @@ test('the result beneath a deletion is not handed the deleted contents', async (
   const ui = await mountResult($, 'Bash', { output: deletion(false) })
   expect(await ui.find({ type: 'Text', text: 'result' })).toBeDefined()
   expect('bashEditDiff' in (handed.at(-1) as object)).toBe(false)
+  await ui.unmount()
+})
+
+test('a deleted file is a line between the row and the fold of a long output', async ($, on) => {
+  stubRoot(on, '/repo')
+  const ui = await engine($, on).mount({ ...deletion(false), ...numbers(FOLD_OVER + 1) })
+  expect(await ui.find({ type: 'Text', text: 'Deleted lorem.txt -10' })).toBeDefined()
+  expect((await ui.find({ key: 'output' }))?.text).toBe(`▸ ${FOLD_OVER + 1} lines`)
   await ui.unmount()
 })

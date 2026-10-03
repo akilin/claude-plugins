@@ -20,7 +20,9 @@ const isOutputOpen = atom({ plugin: 'better-tool-rows', key: 'isOutputOpen' } as
 // which is not handed the call's input.
 const commandOf = atom({ plugin: 'better-tool-rows', key: 'command' } as const, null)
 
-// The project root paths are shown relative to, as files.tsx records it.
+// The project root paths are shown relative to, as files.tsx records it. Not
+// imported from there: the engine only reads state through an atom declared
+// in the reading file, and does not follow `$` into an imported function.
 const startRoot = atom({ plugin: 'better-tool-rows', key: 'startRoot' } as const, null)
 
 // The most lines an output shows as the engine draws it; a longer one folds.
@@ -72,7 +74,7 @@ const rowLines = (output: unknown, command: string | null, columns: number) => {
   return lines.length > FOLD_OVER || isCut ? lines : undefined
 }
 
-type EditDiff = { files: { filePath: string; hunks: { lines: string[] }[]; deleted?: true }[]; moreFiles?: number }
+type EditDiff = { files: { filePath: string; hunks?: { lines?: string[] }[]; deleted?: true }[]; moreFiles?: number }
 
 // A Bash output without the files its command deleted in its diff, which the
 // engine draws as every line each one had, and those files with the lines
@@ -90,7 +92,7 @@ export const withoutDeletions = (output: unknown) => {
       .filter(file => file.deleted)
       .map(file => ({
         path: file.filePath,
-        removed: file.hunks.flatMap(hunk => hunk.lines).filter(line => line.startsWith('-')).length,
+        removed: (file.hunks ?? []).flatMap(hunk => hunk.lines ?? []).filter(line => line.startsWith('-')).length,
       })),
   }
 }
@@ -134,17 +136,16 @@ export const registerBash: Register = on => {
 
     // A file the command deleted, as `Deleted lorem.txt -10` beneath the row.
     const root = deleted.length > 0 ? ((await read($, startRoot)) ?? (await $.session.root())) : ''
-    const deletedLines = deleted.map(file => (
-      <Box key={`deleted:${file.path}`}>
-        {gutterLine(
-          elements,
-          <Text>
-            Deleted {shortPath(file.path, root)}
-            {file.removed > 0 && <Text color="error"> -{file.removed}</Text>}
-          </Text>,
-        )}
-      </Box>
-    ))
+    const deletedLines = deleted.map(file =>
+      gutterLine(
+        elements,
+        <Text>
+          Deleted {shortPath(file.path, root)}
+          {file.removed > 0 && <Text color="error"> -{file.removed}</Text>}
+        </Text>,
+        `deleted:${file.path}`,
+      ),
+    )
     if (!isCut && lines === undefined) {
       return deleted.length === 0 ? next(short) : (
         <Box flexDirection="column">

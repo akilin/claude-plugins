@@ -28,6 +28,7 @@ test('a command fits on one row, its lines joined and cut with an ellipsis past 
   expect(shortCommand('seq 1 3', 20)).toEqual({ text: 'seq 1 3', isCut: false })
   expect(shortCommand('echo one && \\\n  echo two', 40)).toEqual({ text: 'echo one && echo two', isCut: true })
   expect(shortCommand('echo 0123456789', 10)).toEqual({ text: 'echo 0123…', isCut: true })
+  expect(shortCommand('echo \u202etxt.exe', 40)).toEqual({ text: 'echo txt.exe', isCut: true })
 })
 
 test('a command is cut by the columns it takes, never past its room', () => {

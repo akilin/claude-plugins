@@ -1,0 +1,7 @@
+{
+  "name": "prompt-bubbles",
+  "version": "0.1.0",
+  "description": "Draws your own prompts as right-aligned chat bubbles so they stand apart from Claude's replies",
+  "author": { "name": "akilin", "url": "https://github.com/akilin" },
+  "repository": "https://github.com/akilin/claude-plugins"
+}

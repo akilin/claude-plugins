@@ -7,6 +7,7 @@ Claude Code plugins that change how the terminal UI looks. They only change rend
 ```
 /plugin marketplace add akilin/claude-plugins
 /plugin install better-tool-rows@akilin-plugins
+/plugin install prompt-bubbles@akilin-plugins
 ```
 
 ## Plugins
@@ -19,6 +20,10 @@ Shorter, quieter tool rows.
 - **Edit / Write** hide the diff and put the line counts on the row instead: `Update(notes.md) +3 -1`. An edit held for review rather than written is shown as usual.
 - **Bash** commands are put on one line (a multi-line command's lines are joined) and cut with `…` so `Bash(command)` always fits on one line, wide characters included.
 - **Bash** output longer than 5 lines is folded behind a clickable `▸ 12 lines`; unfolded, it shows up to 500 lines and counts the rest. If the command was cut or joined, the fold also holds the full command with syntax highlighting (`▸ command, 12 lines`); with 5 lines of output or fewer, the output stays as it is and the fold holds the command alone (`▸ command`).
+
+### prompt-bubbles
+
+Your own prompts are drawn as right-aligned chat bubbles (a cyan rounded box, as wide as the longest line and at most three quarters of the terminal) so they stand apart from Claude's replies. Task notifications and messages from other agents or sessions keep the usual drawing, and so does the desktop app, which already has bubbles.
 
 ## Development
 

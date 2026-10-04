@@ -10,6 +10,11 @@
       "name": "better-tool-rows",
       "source": "./plugins/better-tool-rows",
       "description": "Shorter, quieter tool rows: relative paths, +/- counts instead of diffs, cut Bash commands and folded Bash output"
+    },
+    {
+      "name": "prompt-bubbles",
+      "source": "./plugins/prompt-bubbles",
+      "description": "Your prompts drawn as right-aligned chat bubbles, apart from Claude's replies"
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { commandSource, shellLines, shortCommand } from './shell'
+import { commandSource, shellLines, shortCommand, withOverwrites } from './shell'
 
 test('a shell result is the lines of both its streams, or of the text a failed call read', () => {
   expect(shellLines({ stdout: '1\n2\n', stderr: 'warn' })).toEqual(['1', '2', 'warn'])
@@ -28,6 +28,15 @@ test('a shell result shows a line carriage returns wrote over as a terminal leav
   expect(shellLines({ stdout: 'one\r\ntwo\r\n' })).toEqual(['one', 'two'])
   expect(shellLines({ stdout: '😀😀x\rA' })).toEqual(['A😀x'])
   expect(shellLines({ stdout: 'héllo\r😀' })).toEqual(['😀éllo'])
+})
+
+test('the engine is handed a stream carriage returns wrote over as a terminal leaves it, and any other as it is', () => {
+  const output = { stdout: '😀😀x\rA\nhéllo\r😀\n', stderr: 'one\r\n\x1b[31mred\x1b[0m', interrupted: false }
+  expect(withOverwrites(output)).toEqual({ ...output, stdout: 'A😀x\n😀éllo' })
+  expect(withOverwrites('Exit code 1\r50%')).toBe('Exit code 1\r50%')
+  const untouched = { stdout: 'one\r\ntwo\n', stderr: '', interrupted: false }
+  expect(withOverwrites(untouched)).toBe(untouched)
+  expect(Object.keys(withOverwrites({ stdout: 'a\rb', interrupted: false }) as object)).toEqual(['stdout', 'interrupted'])
 })
 
 test('a shell result has no trailing blank lines', () => {

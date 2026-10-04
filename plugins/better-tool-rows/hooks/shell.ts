@@ -35,6 +35,24 @@ export const shellLines = (output: unknown) => {
   return lines
 }
 
+// A Bash output as the engine is handed it to draw: a stream with a carriage
+// return outside a CRLF, which the engine would drop and so join what it
+// wrote over, as the lines a terminal leaves. An output with no such stream
+// is handed on as it is.
+export const withOverwrites = (output: unknown) => {
+  if (typeof output !== 'object' || output === null) {
+    return output
+  }
+  const isOverwritten = (s: unknown): s is string => typeof s === 'string' && /\r(?!\n)/.test(s)
+  const settled = Object.fromEntries(
+    (['stdout', 'stderr'] as const)
+      .map(stream => [stream, (output as Record<string, unknown>)[stream]] as const)
+      .filter(([, s]) => isOverwritten(s))
+      .map(([stream, s]) => [stream, shellLines(s as string).join('\n')]),
+  )
+  return Object.keys(settled).length === 0 ? output : { ...output, ...settled }
+}
+
 // A command as one row of `room` columns: its lines joined by spaces (a `\`
 // continuation's too, CRLF or not), cut with `…` past the room; `isCut` when
 // it is no longer the command as written.

@@ -194,6 +194,39 @@ for (const [what, output] of [
   })
 }
 
+test('a short output carriage returns wrote over is handed to the engine as a terminal leaves it', async ($, on) => {
+  const drawn: unknown[] = []
+  stubRow(on, ({ output }) => {
+    drawn.push((output as { stdout: string }).stdout)
+    return 'row'
+  })
+  on('ui.render', { component: 'ToolResult' }, ($, e) => {
+    drawn.push((e.props.output as { stdout: string }).stdout)
+    const { Text } = $.ui.resolve(e)
+    return <Text>result</Text>
+  })
+  const output = { stdout: '10%\r50%\r✅ done\n', stderr: '', interrupted: false }
+
+  await (await mountRow($, 'Bash', { input: { command: 'seq 1 3' }, output })).unmount()
+  await (await mountResult($, 'Bash', { output })).unmount()
+
+  expect(drawn).toEqual(['✅ done', '✅ done'])
+})
+
+test('an interrupted output carriage returns wrote over is handed to the engine as it is', async ($, on) => {
+  const drawn: unknown[] = []
+  on('ui.render', { component: 'ToolResult' }, ($, e) => {
+    drawn.push(e.props.output)
+    const { Text } = $.ui.resolve(e)
+    return <Text>result</Text>
+  })
+  const output = { stdout: '10%\r50%', stderr: '', interrupted: true }
+
+  await (await mountResult($, 'Bash', { output })).unmount()
+
+  expect(drawn).toEqual([output])
+})
+
 test('the result beneath a short command made this session is drawn by the engine', async ($, on) => {
   const bash = engine($, on)
   await bash.makeCall('seq 1 2', numbers(2))

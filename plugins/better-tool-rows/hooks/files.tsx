@@ -38,6 +38,8 @@ const withShortPath = <E extends { props: { input?: unknown } }>(e: E, root: str
 // on ctrl+click wherever it resolves from. Left as it is off the terminal (a
 // remote surface links https: alone), for a path drawn in full, and for a
 // label too long for the line, whose path wraps out from under the link.
+// Laid over the label's line, the row's second (it opens with a blank line),
+// not its last: an expanded group's row draws its output beneath it.
 const withFullPathLink = (
   $: EngineInterface,
   e: RenderInput<'ToolUse'>,
@@ -55,7 +57,7 @@ const withFullPathLink = (
   return (
     <Box>
       {row}
-      <Box position="absolute" bottom={0} left={textWidth(toolLabel(name, '')) - 1}>
+      <Box position="absolute" top={1} left={textWidth(toolLabel(name, '')) - 1}>
         <Link href={fileUrl(short.full)}>{short.path}</Link>
       </Box>
     </Box>

@@ -1,7 +1,7 @@
 import { atom, memberOf, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { commandSource, shellLines, shortCommand } from './shell'
+import { commandSource, shellLines, shortCommand, withOverwrites } from './shell'
 import {
   drawNothing,
   GROUP_INDENT,
@@ -54,6 +54,10 @@ const isPlain = (output: unknown) => {
     result.persistedOutputPath === undefined
   )
 }
+
+// A Bash output as the engine is handed it: a plain one with the lines
+// carriage returns wrote over as a terminal leaves them, any other as it is.
+const forEngine = (output: unknown) => (isPlain(output) ? withOverwrites(output) : output)
 
 // The lines of a finished Bash call's output that its row draws beneath its
 // fold, the result beneath it then drawing nothing; undefined for an output
@@ -129,8 +133,8 @@ export const registerBash: Register = on => {
       return next(withCommand)
     }
     const { output, deleted } = withoutDeletions(e.props.output)
-    const short = { ...withCommand, props: { ...withCommand.props, output } }
     const lines = rowLines(output, await read($, memberOf(commandOf, { requestId: e.props.tool_use_id })), columns)
+    const short = { ...withCommand, props: { ...withCommand.props, output: forEngine(output) } }
     const elements = $.ui.resolve(e)
     const { Box, Button, Code, Text } = elements
 
@@ -203,12 +207,13 @@ export const registerBash: Register = on => {
   })
 
   // The output a Bash row draws, its result draws nothing in place of; the
-  // engine draws the rest without the files the row says were deleted.
+  // engine draws the rest without the files the row says were deleted, and
+  // with the lines carriage returns wrote over as a terminal leaves them.
   on('ui.render', { component: 'ToolResult', props: { tool: 'Bash' } }, async ($, e, next) => {
     const command = await read($, memberOf(commandOf, { requestId: e.props.tool_use_id }))
     const { output } = withoutDeletions(e.props.output)
     return rowLines(output, command, viewportColumns(e)) === undefined
-      ? next({ ...e, props: { ...e.props, output } })
+      ? next({ ...e, props: { ...e.props, output: forEngine(output) } })
       : drawNothing($.ui.resolve(e))
   })
 }

@@ -60,6 +60,19 @@ for (const tool of ['Read', 'Edit', 'Write']) {
   })
 }
 
+test('the link is laid over the label line, not the output a grouped row draws beneath it', async ($, on) => {
+  stubRoot(on, ROOT)
+  stubRow(on, () => '\n● Read(src/a.md)\n    Read 8 lines')
+
+  const ui = await mountRow($, 'Read', { input: { file_path: `${ROOT}/src/a.md` }, output: { type: 'text' } })
+  const boxes = await ui.findAll({ type: 'Box' })
+  await ui.unmount()
+
+  const overlay = boxes.find(box => (box.props as { position?: string }).position === 'absolute')
+  expect(overlay?.props).toMatchObject({ top: 1, left: textWidth('● Read()') - 1 })
+  expect((overlay?.props as { bottom?: number }).bottom).toBeUndefined()
+})
+
 test('a path drawn in full, or too long for the line, keeps the link the engine draws', async ($, on) => {
   stubRoot(on, ROOT)
   stubRow(on, () => 'row')

@@ -95,7 +95,7 @@ export const changeCounts = (output: FileChange) => {
 // The counts a finished, successful Edit or Write shows; undefined for any
 // other result, and for one held for review instead of written, which the
 // engine then draws as usual.
-const countsOf = (isErrored: boolean, output: unknown) => {
+export const countsOf = (isErrored: boolean, output: unknown) => {
   const change = output as FileChange | undefined
   if (isErrored || !change || !Array.isArray(change.structuredPatch) || change.staged) {
     return undefined

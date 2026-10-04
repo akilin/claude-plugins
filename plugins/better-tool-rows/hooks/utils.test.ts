@@ -52,4 +52,6 @@ test('a file URL holds the full path, a Windows one with forward slashes', () =>
   expect(fileUrl('/home/me/my notes/#1?.md')).toBe('file:///home/me/my%20notes/%231%3F.md')
   expect(fileUrl('C:\\Users\\me\\a.md')).toBe('file:///C:/Users/me/a.md')
   expect(fileUrl('\\\\server\\share\\a.md')).toBe('file://server/share/a.md')
+  expect(fileUrl('\\\\?\\C:\\Users\\me\\a.md')).toBe('file:///C:/Users/me/a.md')
+  expect(fileUrl('\\\\?\\UNC\\server\\share\\a.md')).toBe('file://server/share/a.md')
 })

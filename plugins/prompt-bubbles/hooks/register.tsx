@@ -36,7 +36,7 @@ export const bubbleWidth = (text: string, columns: number) => {
 
 export const register: Register = on => {
   on('ui.render', { component: 'UserMessage' }, ($, e, next) => {
-    const text = e.props.text.replace(/\s+$/, '')
+    const text = e.props.text.replace(/\r\n?/g, '\n').replace(/\s+$/, '')
     if (e.surface !== 'terminal' || !OWN_ORIGINS.has(e.props.origin.kind) || text === '') {
       return next(e)
     }

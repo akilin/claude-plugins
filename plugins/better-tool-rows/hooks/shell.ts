@@ -32,10 +32,10 @@ export const shellLines = (output: unknown) => {
 }
 
 // A command as one row of `room` columns: its lines joined by spaces (a `\`
-// continuation's too), cut with `…` past the room; `isCut` when it is no
-// longer the command as written.
+// continuation's too, CRLF or not), cut with `…` past the room; `isCut` when
+// it is no longer the command as written.
 export const shortCommand = (command: string, room: number) => {
-  const flat = stripControl(command.replace(/\s*\\?\n\s*/g, ' ').replace(/\t/g, ' ')).trim()
+  const flat = stripControl(command.replace(/\s*\\?\r?\n\s*/g, ' ').replace(/\t/g, ' ')).trim()
   const text = textWidth(flat) > room ? `${fitWidth(flat, Math.max(room, 1) - 1).trimEnd()}…` : flat
   return { text, isCut: text !== command.trim() }
 }

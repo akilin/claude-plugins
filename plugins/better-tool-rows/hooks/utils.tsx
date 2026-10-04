@@ -151,9 +151,10 @@ export const shortPath = (path: string, root: string) => {
 }
 
 // A file:// URL to `path`, which a terminal opens on ctrl+click wherever it
-// was started: a Windows path with forward slashes, a UNC one as its host.
+// was started: a Windows path with forward slashes, a UNC one as its host,
+// either without the `\\?\` long-path prefix.
 export const fileUrl = (path: string) => {
-  const slashed = path.replace(/\\/g, '/')
+  const slashed = path.replace(/\\/g, '/').replace(/^\/\/\?\/(UNC\/)?/i, (_, unc) => (unc ? '//' : ''))
   const url = slashed.startsWith('//') ? `file:${slashed}` : `file://${slashed.startsWith('/') ? '' : '/'}${slashed}`
   return encodeURI(url).replace(/[?#]/g, encodeURIComponent)
 }

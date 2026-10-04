@@ -36,6 +36,12 @@ test('the person’s prompt is drawn as a right-aligned bubble', async ($, on) =
   await ui.unmount()
 })
 
+test('a prompt with CRLF line endings is drawn without its carriage returns', async ($, on) => {
+  const ui = await mountMessage($, on, { text: 'one\r\ntwo\r\n' })
+  expect((await ui.find({ key: 'bubble' }))?.text).toBe('one\ntwo')
+  await ui.unmount()
+})
+
 for (const origin of [{ kind: 'task-notification' }, { kind: 'peer' }] as PromptOrigin[]) {
   test(`a ${origin.kind} row keeps the engine's drawing`, async ($, on) => {
     const ui = await mountMessage($, on, { origin })

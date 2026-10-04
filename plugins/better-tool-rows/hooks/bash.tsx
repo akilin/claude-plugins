@@ -218,14 +218,17 @@ export const registerBash: Register = on => {
     )
   })
 
-  // The output a Bash row draws, its result draws nothing in place of; the
-  // engine draws the rest without the files the row says were created or
-  // deleted, and with the lines carriage returns wrote over as a terminal
-  // leaves them.
+  // The output a Bash row draws, its result draws nothing in place of, as it
+  // does when the files the row says were created or deleted were all the
+  // output had, rather than the engine's `Done`; the engine draws the rest
+  // without those files, and with the lines carriage returns wrote over as a
+  // terminal leaves them.
   on('ui.render', { component: 'ToolResult', props: { tool: 'Bash' } }, async ($, e, next) => {
     const command = await read($, memberOf(commandOf, { requestId: e.props.tool_use_id }))
-    const { output } = withoutWholeFiles(e.props.output)
-    return rowLines(output, command, viewportColumns(e)) === undefined
+    const { output, wholeFiles } = withoutWholeFiles(e.props.output)
+    const isOnlyWholeFiles =
+      wholeFiles.length > 0 && isPlain(output) && !('bashEditDiff' in (output as object)) && shellLines(output).length === 0
+    return rowLines(output, command, viewportColumns(e)) === undefined && !isOnlyWholeFiles
       ? next({ ...e, props: { ...e.props, output: forEngine(output) } })
       : drawNothing($.ui.resolve(e))
   })

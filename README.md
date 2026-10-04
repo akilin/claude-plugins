@@ -39,3 +39,7 @@ npx -y -p typescript tsc -p tsconfig.json
 ```
 
 `tsc` needs the API types Claude Code writes to `.claude-plugin/types/` (gitignored) when it loads the plugin, so on a fresh clone load it once first, e.g. `claude --plugin-dir plugins/better-tool-rows`.
+
+## License
+
+MIT

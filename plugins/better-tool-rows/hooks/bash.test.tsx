@@ -332,10 +332,18 @@ test('the result beneath a deletion is not handed the deleted contents', async (
     const { Text } = $.ui.resolve(e)
     return <Text>result</Text>
   })
-  const ui = await mountResult($, 'Bash', { output: deletion(false) })
+  const ui = await mountResult($, 'Bash', { output: { ...deletion(false), ...numbers(2) } })
   expect(await ui.find({ type: 'Text', text: 'result' })).toBeDefined()
   expect('bashEditDiff' in (handed.at(-1) as object)).toBe(false)
   await ui.unmount()
+})
+
+test('the result beneath a deletion that printed nothing draws nothing', async ($, on) => {
+  const bash = engine($, on)
+  expect(await bash.drawsResult(deletion(false))).toBe(false)
+  expect(await bash.drawsResult(creation())).toBe(false)
+  expect(await bash.drawsResult(deletion(true))).toBe(true)
+  expect(await bash.drawsResult({ ...deletion(false), ...numbers(1) })).toBe(true)
 })
 
 test('a deleted file is a line between the row and the fold of a long output', async ($, on) => {

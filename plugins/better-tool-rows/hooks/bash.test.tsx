@@ -1,7 +1,7 @@
 import type { RenderPropsOf } from 'claude-code'
 import { expect, test, type TestBody } from 'claude-code/testing'
 
-import { commandRoom, FOLD_OVER, withoutDeletions } from './bash'
+import { commandRoom, FOLD_OVER, withoutWholeFiles } from './bash'
 import { mountResult, mountRow, stubResult, stubRoot, stubRow } from './mount'
 import { GROUP_INDENT, textWidth, toolLabel } from './utils'
 
@@ -291,24 +291,24 @@ const deletion = (withEdit: boolean) => ({
   },
 })
 
-test('withoutDeletions takes deleted files out of the diff and counts their lines', () => {
-  const alone = withoutDeletions(deletion(false))
-  expect(alone.deleted).toEqual([{ path: '/repo/lorem.txt', removed: 10 }])
+test('withoutWholeFiles takes deleted files out of the diff and counts their lines', () => {
+  const alone = withoutWholeFiles(deletion(false))
+  expect(alone.wholeFiles).toEqual([{ path: '/repo/lorem.txt', isDeleted: true, lines: 10 }])
   expect('bashEditDiff' in (alone.output as object)).toBe(false)
 
-  const withEdit = withoutDeletions(deletion(true))
+  const withEdit = withoutWholeFiles(deletion(true))
   expect((withEdit.output as { bashEditDiff: { files: { filePath: string }[] } }).bashEditDiff.files.map(f => f.filePath)).toEqual([
     '/repo/kept.txt',
   ])
 
-  const more = withoutDeletions({ ...deletion(false), bashEditDiff: { ...deletion(false).bashEditDiff, moreFiles: 3 } })
+  const more = withoutWholeFiles({ ...deletion(false), bashEditDiff: { ...deletion(false).bashEditDiff, moreFiles: 3 } })
   expect((more.output as { bashEditDiff: { files: unknown[]; moreFiles: number } }).bashEditDiff).toEqual({ files: [], moreFiles: 3 })
 
   const noHunks = { ...numbers(0), bashEditDiff: { files: [{ filePath: '/repo/a.txt', deleted: true }] } }
-  expect(withoutDeletions(noHunks).deleted).toEqual([{ path: '/repo/a.txt', removed: 0 }])
+  expect(withoutWholeFiles(noHunks).wholeFiles).toEqual([{ path: '/repo/a.txt', isDeleted: true, lines: 0 }])
 
-  expect(withoutDeletions(numbers(2))).toEqual({ output: numbers(2), deleted: [] })
-  expect(withoutDeletions('text').output).toBe('text')
+  expect(withoutWholeFiles(numbers(2))).toEqual({ output: numbers(2), wholeFiles: [] })
+  expect(withoutWholeFiles('text').output).toBe('text')
 })
 
 test('a deleted file is a line beneath the row, and the engine is not handed its contents', async ($, on) => {
@@ -343,5 +343,44 @@ test('a deleted file is a line between the row and the fold of a long output', a
   const ui = await engine($, on).mount({ ...deletion(false), ...numbers(FOLD_OVER + 1) })
   expect(await ui.find({ type: 'Text', text: 'Deleted lorem.txt -10' })).toBeDefined()
   expect((await ui.find({ key: 'output' }))?.text).toBe(`▸ ${FOLD_OVER + 1} lines`)
+  await ui.unmount()
+})
+
+// A command that created `/repo/new.txt` (3 lines) and deleted `/repo/lorem.txt`.
+const creation = () => ({
+  ...numbers(0),
+  bashEditDiff: {
+    files: [
+      {
+        filePath: '/repo/new.txt',
+        hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 3, lines: ['+a', '+b', '+c'] }],
+        created: true as const,
+      },
+      ...deletion(false).bashEditDiff.files,
+    ],
+    moreFiles: 0,
+  },
+})
+
+test('withoutWholeFiles takes created files out of the diff with deleted ones, in order', () => {
+  const { output, wholeFiles } = withoutWholeFiles(creation())
+  expect(wholeFiles).toEqual([
+    { path: '/repo/new.txt', isDeleted: false, lines: 3 },
+    { path: '/repo/lorem.txt', isDeleted: true, lines: 10 },
+  ])
+  expect('bashEditDiff' in (output as object)).toBe(false)
+})
+
+test('a created file is a line beneath the row, and the engine is not handed its contents', async ($, on) => {
+  stubRoot(on, '/repo')
+  const handed: unknown[] = []
+  stubRow(on, ({ output }) => {
+    handed.push(output)
+    return 'row'
+  })
+  const ui = await mountRow($, 'Bash', { input: { command: 'seq 3 > new.txt; rm lorem.txt' }, output: creation() })
+  expect(await ui.find({ type: 'Text', text: 'Created new.txt +3' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'Deleted lorem.txt -10' })).toBeDefined()
+  expect('bashEditDiff' in (handed.at(-1) as object)).toBe(false)
   await ui.unmount()
 })

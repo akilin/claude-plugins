@@ -133,6 +133,31 @@ export const fitWidth = (text: string, room: number) => {
   return fit
 }
 
+// The longest end of `text` that fits in `room` columns, never opening on a
+// combining mark, an emoji selector or a character joined on by a ZWJ.
+export const fitEnd = (text: string, room: number) => {
+  const clusters: { text: string; width: number }[] = []
+  for (const [char, charColumns] of charWidths(text)) {
+    const last = clusters.at(-1)
+    if (last && (charColumns === 0 || char === EMOJI_STYLE)) {
+      last.text += char
+      last.width += charColumns
+    } else {
+      clusters.push({ text: char, width: charColumns })
+    }
+  }
+  let width = 0
+  let fit = ''
+  for (const cluster of clusters.reverse()) {
+    width += cluster.width
+    if (width > room) {
+      break
+    }
+    fit = cluster.text + fit
+  }
+  return fit
+}
+
 // `text` without control characters (C0, DEL, C1, and the bidi overrides and
 // isolates that would make it read in another order), but for those in `keep`.
 export const stripControl = (text: string, keep = '') =>

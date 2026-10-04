@@ -73,11 +73,11 @@ test('the link is laid over the label line, not the output a grouped row draws b
   expect((overlay?.props as { bottom?: number }).bottom).toBeUndefined()
 })
 
-test('a path drawn in full, or too long for the line, keeps the link the engine draws', async ($, on) => {
+test('a path drawn in full, too long for the line, or no URL can hold, keeps the link the engine draws', async ($, on) => {
   stubRoot(on, ROOT)
   stubRow(on, () => 'row')
 
-  for (const file_path of ['/etc/hosts', `${ROOT}/${'deep/'.repeat(20)}a.md`]) {
+  for (const file_path of ['/etc/hosts', `${ROOT}/${'deep/'.repeat(20)}a.md`, `${ROOT}/a\ud800.md`]) {
     const ui = await mountRow($, 'Read', { input: { file_path } })
     expect(await ui.find({ type: 'Link' })).toBeUndefined()
     await ui.unmount()

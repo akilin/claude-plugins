@@ -64,4 +64,5 @@ test('a file URL holds the full path, a Windows one with forward slashes', () =>
   expect(fileUrl('\\\\server\\share\\a.md')).toBe('file://server/share/a.md')
   expect(fileUrl('\\\\?\\C:\\Users\\me\\a.md')).toBe('file:///C:/Users/me/a.md')
   expect(fileUrl('\\\\?\\UNC\\server\\share\\a.md')).toBe('file://server/share/a.md')
+  expect(fileUrl('C:\\Users\\me\\a\ud800.md')).toBeUndefined()
 })

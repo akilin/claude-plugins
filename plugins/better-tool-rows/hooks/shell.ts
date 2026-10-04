@@ -53,14 +53,30 @@ export const withOverwrites = (output: unknown) => {
   return Object.keys(settled).length === 0 ? output : { ...output, ...settled }
 }
 
+// A command's lines joined by spaces, as one row draws it.
+const flatCommand = (command: string) =>
+  stripControl(command.replace(/\s*\\?\r?\n\s*/g, ' ').replace(/\t/g, ' ')).trim()
+
 // A command as one row of `room` columns: its lines joined by spaces (a `\`
 // continuation's too, CRLF or not), cut with `…` past the room; `isCut` when
 // it is no longer the command as written.
 export const shortCommand = (command: string, room: number) => {
-  const flat = stripControl(command.replace(/\s*\\?\r?\n\s*/g, ' ').replace(/\t/g, ' ')).trim()
+  const flat = flatCommand(command)
   const text = textWidth(flat) > room ? `${fitWidth(flat, Math.max(room, 1) - 1).trimEnd()}…` : flat
   return { text, isCut: text !== command.trim() }
 }
+
+// What decides whether shortCommand cuts a command at any room, kept in place
+// of the command itself (which can hold a whole heredoc): the columns it takes
+// on one row, and whether putting it on one row already changed it.
+export type CommandShape = { width: number; isReshaped: boolean }
+export const commandShape = (command: string): CommandShape => {
+  const flat = flatCommand(command)
+  return { width: textWidth(flat), isReshaped: flat !== command.trim() }
+}
+
+// Whether shortCommand cuts a command of `shape` in `room` columns.
+export const isShapeCut = (shape: CommandShape, room: number) => shape.isReshaped || shape.width > room
 
 // A command as a Code can draw it: no control characters but tab and
 // newline, within its 10000 characters, not cut inside a surrogate pair.

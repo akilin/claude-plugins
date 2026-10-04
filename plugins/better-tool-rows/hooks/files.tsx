@@ -47,7 +47,8 @@ const withPathIn = <S extends { e: { props: { input?: unknown } }; path: string 
 // it was handed: the same text laid over it as a link, so a terminal opens it
 // on ctrl+click wherever it resolves from. Left as it is off the terminal (a
 // remote surface links https: alone), for a path drawn in full, and for a
-// label too long for the line, whose path wraps out from under the link.
+// label too long for the line, whose path wraps out from under the link, and
+// for a path no URL can hold.
 // Laid over the label's line, the row's second (it opens with a blank line),
 // not its last: an expanded group's row draws its output beneath it.
 const withFullPathLink = (
@@ -60,7 +61,8 @@ const withFullPathLink = (
   if (e.surface !== 'terminal' || short.path === short.full) {
     return row
   }
-  if (textWidth(toolLabel(name, short.path)) > viewportColumns(e) - GROUP_INDENT) {
+  const href = fileUrl(short.full)
+  if (href === undefined || textWidth(toolLabel(name, short.path)) > viewportColumns(e) - GROUP_INDENT) {
     return row
   }
   const { Box, Link } = $.ui.resolve(e)
@@ -68,7 +70,7 @@ const withFullPathLink = (
     <Box>
       {row}
       <Box position="absolute" top={1} left={textWidth(toolLabel(name, '')) - 1}>
-        <Link href={fileUrl(short.full)}>{short.path}</Link>
+        <Link href={href}>{short.path}</Link>
       </Box>
     </Box>
   )

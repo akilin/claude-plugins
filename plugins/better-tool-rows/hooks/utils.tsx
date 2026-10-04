@@ -177,11 +177,16 @@ export const shortPath = (path: string, root: string) => {
 
 // A file:// URL to `path`, which a terminal opens on ctrl+click wherever it
 // was started: a Windows path with forward slashes, a UNC one as its host,
-// either without the `\\?\` long-path prefix.
+// either without the `\\?\` long-path prefix. Undefined for a path no URL
+// can hold: one with a lone surrogate, as a Windows file name can have.
 export const fileUrl = (path: string) => {
   const slashed = path.replace(/\\/g, '/').replace(/^\/\/\?\/(UNC\/)?/i, (_, unc) => (unc ? '//' : ''))
   const url = slashed.startsWith('//') ? `file:${slashed}` : `file://${slashed.startsWith('/') ? '' : '/'}${slashed}`
-  return encodeURI(url).replace(/[?#]/g, encodeURIComponent)
+  try {
+    return encodeURI(url).replace(/[?#]/g, encodeURIComponent)
+  } catch {
+    return undefined
+  }
 }
 
 // The render event with some of the tool call's input replaced, for the

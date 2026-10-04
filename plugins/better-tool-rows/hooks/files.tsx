@@ -1,8 +1,9 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderElement, RenderInput } from 'claude-code'
 
 import {
   drawNothing,
+  fileUrl,
   GROUP_INDENT,
   gutterLine,
   shortPath,
@@ -21,15 +22,44 @@ const startRoot = atom({ plugin: 'better-tool-rows', key: 'startRoot' } as const
 // root as it is now while the start is unrecorded.
 const rootOf = async ($: EngineInterface) => (await read($, startRoot)) ?? (await $.session.root())
 
-// The render event with its file_path relative to `root`, and that path;
-// undefined for an input without one.
+// The render event with its file_path relative to `root`, that path and the
+// full one; undefined for an input without one.
 const withShortPath = <E extends { props: { input?: unknown } }>(e: E, root: string) => {
   const input = e.props.input as { file_path?: unknown } | undefined
   if (typeof input?.file_path !== 'string') {
     return undefined
   }
   const path = shortPath(input.file_path, root)
-  return { e: withInput(e, { file_path: path }), path }
+  return { e: withInput(e, { file_path: path }), path, full: input.file_path }
+}
+
+// The engine's row with its path linked to the full path, not the shorter one
+// it was handed: the same text laid over it as a link, so a terminal opens it
+// on ctrl+click wherever it resolves from. Left as it is off the terminal (a
+// remote surface links https: alone), for a path drawn in full, and for a
+// label too long for the line, whose path wraps out from under the link.
+const withFullPathLink = (
+  $: EngineInterface,
+  e: RenderInput<'ToolUse'>,
+  row: RenderElement,
+  name: string,
+  short: { path: string; full: string },
+) => {
+  if (e.surface !== 'terminal' || short.path === short.full) {
+    return row
+  }
+  if (textWidth(toolLabel(name, short.path)) > viewportColumns(e) - GROUP_INDENT) {
+    return row
+  }
+  const { Box, Link } = $.ui.resolve(e)
+  return (
+    <Box>
+      {row}
+      <Box position="absolute" bottom={0} left={textWidth(toolLabel(name, '')) - 1}>
+        <Link href={fileUrl(short.full)}>{short.path}</Link>
+      </Box>
+    </Box>
+  )
 }
 
 type Patch = { lines: string[] }[]
@@ -73,10 +103,15 @@ const countsOf = (isErrored: boolean, output: unknown) => {
   return counts.added === 0 && counts.removed === 0 ? undefined : counts
 }
 
+// The name the engine draws an Edit or Write row under: `Update`, `Create`
+// for an Edit with nothing to replace, or `Write`.
+const rowName = (tool: string, input: { old_string?: unknown }) =>
+  tool === 'Write' ? 'Write' : input.old_string === '' ? 'Create' : 'Update'
+
 // The text the engine draws for an Edit or Write row: its status dot, then
-// `Update(potato.md)` (`Create(...)` for an Edit with nothing to replace).
+// `Update(potato.md)`.
 export const rowLabel = (tool: string, input: { old_string?: unknown }, path: string) =>
-  toolLabel(tool === 'Write' ? 'Write' : input.old_string === '' ? 'Create' : 'Update', path)
+  toolLabel(rowName(tool, input), path)
 
 export const registerFiles: Register = on => {
   // `/cd` or a worktree move later moves the project root, but not the
@@ -92,7 +127,7 @@ export const registerFiles: Register = on => {
   // The engine draws its own Read row; it is only handed the shorter path.
   on('ui.render', { component: 'ToolUse', props: { tool: 'Read' } }, async ($, e, next) => {
     const short = withShortPath(e, await rootOf($))
-    return next(short ? short.e : e)
+    return short ? withFullPathLink($, e, await next(short.e), 'Read', short) : next(e)
   })
 
   for (const tool of ['Edit', 'Write']) {
@@ -102,7 +137,8 @@ export const registerFiles: Register = on => {
       if (!short) {
         return next(e)
       }
-      const row = await next(short.e)
+      const name = rowName(tool, e.props.input as { old_string?: unknown })
+      const row = withFullPathLink($, e, await next(short.e), name, short)
 
       const counts = countsOf(e.props.isErrored, e.props.output)
       if (!counts) {
@@ -130,7 +166,7 @@ export const registerFiles: Register = on => {
           ])}
         </Text>
       )
-      const labelWidth = textWidth(rowLabel(tool, e.props.input as { old_string?: unknown }, short.path))
+      const labelWidth = textWidth(toolLabel(name, short.path))
       const countsWidth = textWidth(sides.map(side => side.text).join(' '))
       if (labelWidth + 1 + countsWidth > viewportColumns(e) - GROUP_INDENT) {
         return (

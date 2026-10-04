@@ -16,7 +16,7 @@ Claude Code plugins that change how the terminal UI looks. They only change rend
 
 Shorter, quieter tool rows.
 
-- **Read / Edit / Write** show the file path relative to the folder Claude Code was started in (ctrl+click still opens it), even after Claude `cd`s elsewhere or `/cd` moves the project. Files outside the folder keep their full path. Windows paths match with either separator and in any case.
+- **Read / Edit / Write** show the file path relative to the folder Claude Code was started in (the link behind it still holds the full path, so ctrl+click opens it from anywhere), even after Claude `cd`s elsewhere or `/cd` moves the project. Files outside the folder keep their full path. Windows paths match with either separator and in any case.
 - **Edit / Write** hide the diff and put the line counts on the row instead: `Update(notes.md) +3 -1`. An edit held for review rather than written is shown as usual.
 - **Bash** commands are put on one line (a multi-line command's lines are joined) and cut with `…` so `Bash(command)` always fits on one line, wide characters included.
 - **Bash** commands that delete files list each one beneath the row with its removed line count (`Deleted notes.md -10`) instead of a diff of all the lines each file had.

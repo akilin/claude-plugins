@@ -47,6 +47,30 @@ for (const tool of ['Read', 'Edit', 'Write']) {
   })
 }
 
+for (const tool of ['Read', 'Edit', 'Write']) {
+  test(`the ${tool} row's shorter path links to the full one`, async ($, on) => {
+    stubRoot(on, ROOT)
+    stubRow(on, () => 'row')
+
+    const ui = await mountRow($, tool, { input: { file_path: `${ROOT}/src/a.md` } })
+    const link = await ui.find({ type: 'Link' })
+    await ui.unmount()
+
+    expect(link).toMatchObject({ children: ['src/a.md'], props: { href: `file://${ROOT}/src/a.md` } })
+  })
+}
+
+test('a path drawn in full, or too long for the line, keeps the link the engine draws', async ($, on) => {
+  stubRoot(on, ROOT)
+  stubRow(on, () => 'row')
+
+  for (const file_path of ['/etc/hosts', `${ROOT}/${'deep/'.repeat(20)}a.md`]) {
+    const ui = await mountRow($, 'Read', { input: { file_path } })
+    expect(await ui.find({ type: 'Link' })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
 test('paths stay relative to the folder the session started in after the project root moves', async ($, on) => {
   let root = ROOT
   on('session.root', () => ({ value: root }))

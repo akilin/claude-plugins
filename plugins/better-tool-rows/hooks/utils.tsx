@@ -150,6 +150,14 @@ export const shortPath = (path: string, root: string) => {
   return isInside ? path.slice(dir.length) : path
 }
 
+// A file:// URL to `path`, which a terminal opens on ctrl+click wherever it
+// was started: a Windows path with forward slashes, a UNC one as its host.
+export const fileUrl = (path: string) => {
+  const slashed = path.replace(/\\/g, '/')
+  const url = slashed.startsWith('//') ? `file:${slashed}` : `file://${slashed.startsWith('/') ? '' : '/'}${slashed}`
+  return encodeURI(url).replace(/[?#]/g, encodeURIComponent)
+}
+
 // The render event with some of the tool call's input replaced, for the
 // engine to draw the row with.
 export const withInput = <E extends { props: { input?: unknown } }>(e: E, input: object): E => ({

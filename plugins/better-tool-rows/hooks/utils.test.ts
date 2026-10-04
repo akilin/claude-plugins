@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { fitWidth, shortPath, stripControl, textWidth } from './utils'
+import { fileUrl, fitWidth, shortPath, stripControl, textWidth } from './utils'
 
 const ROOT = '/home/me/project'
 
@@ -45,4 +45,11 @@ test('a fit never ends past its room, nor splits a joined emoji', () => {
 test('control characters and bidi overrides are stripped', () => {
   expect(stripControl('a\x1b\x9bb\u202ec\u2066d\u2069')).toBe('abcd')
   expect(stripControl('a\tb\nc', '\t\n')).toBe('a\tb\nc')
+})
+
+test('a file URL holds the full path, a Windows one with forward slashes', () => {
+  expect(fileUrl('/home/me/project/a.md')).toBe('file:///home/me/project/a.md')
+  expect(fileUrl('/home/me/my notes/#1?.md')).toBe('file:///home/me/my%20notes/%231%3F.md')
+  expect(fileUrl('C:\\Users\\me\\a.md')).toBe('file:///C:/Users/me/a.md')
+  expect(fileUrl('\\\\server\\share\\a.md')).toBe('file://server/share/a.md')
 })

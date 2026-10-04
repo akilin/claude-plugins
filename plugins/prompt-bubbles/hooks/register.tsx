@@ -117,9 +117,20 @@ export const bubbleWidth = (text: string, columns: number) => {
   return Math.min(longest + FRAME, most)
 }
 
+// A paste reaches the model wrapped as `<pasted_content id="…">` …
+// `</pasted_content id="…">`, with tags of that name inside it escaped as
+// `<\pasted_content` and `<\/pasted_content`.
+const PASTE = /<pasted_content id="([^"]*)">\n?([\s\S]*?)\n?<\/pasted_content id="\1">/g
+const ESCAPED_TAG = /<\\(\\*\/?pasted_content\b)/g
+
+// The prompt as the person pasted it: each paste's wrapper dropped and the
+// tags inside it unescaped once.
+export const unwrapPastes = (text: string) =>
+  text.replace(PASTE, (_, _id, body: string) => body.replace(ESCAPED_TAG, '<$1'))
+
 export const register: Register = on => {
   on('ui.render', { component: 'UserMessage' }, ($, e, next) => {
-    const text = e.props.text.replace(/\r\n?/g, '\n').replace(/\s+$/, '')
+    const text = unwrapPastes(e.props.text.replace(/\r\n?/g, '\n')).replace(/\s+$/, '')
     if (e.surface !== 'terminal' || !OWN_ORIGINS.has(e.props.origin.kind) || text === '') {
       return next(e)
     }

@@ -1,7 +1,7 @@
 import type { PromptOrigin, RenderPropsOf } from 'claude-code'
 import { expect, test, type Engine, type TestBody } from 'claude-code/testing'
 
-import { bubbleWidth, textWidth } from './register'
+import { bubbleWidth, textWidth, unwrapPastes } from './register'
 
 type On = Parameters<TestBody>[1]
 
@@ -42,6 +42,16 @@ test('the person’s prompt is drawn as a right-aligned bubble', async ($, on) =
 test('a prompt with CRLF line endings is drawn without its carriage returns', async ($, on) => {
   const ui = await mountMessage($, on, { text: 'one\r\ntwo\r\n' })
   expect((await ui.find({ key: 'bubble' }))?.text).toBe('one\ntwo')
+  await ui.unmount()
+})
+
+test('a paste is drawn without its wrapper, the tags inside it unescaped', async ($, on) => {
+  expect(unwrapPastes('look:\n<pasted_content id="a1">\nx <\\pasted_content id="b2"> y <\\/pasted_content id="b2">\n</pasted_content id="a1">\nok?')).toBe(
+    'look:\nx <pasted_content id="b2"> y </pasted_content id="b2">\nok?',
+  )
+  expect(unwrapPastes('<\\pasted_content id="c"> typed')).toBe('<\\pasted_content id="c"> typed')
+  const ui = await mountMessage($, on, { text: 'see\r\n<pasted_content id="z9">\r\none\r\ntwo\r\n</pasted_content id="z9">' })
+  expect((await ui.find({ key: 'bubble' }))?.text).toBe('see\none\ntwo')
   await ui.unmount()
 })
 

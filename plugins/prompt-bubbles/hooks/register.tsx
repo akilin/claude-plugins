@@ -5,8 +5,8 @@ import type { Register } from 'claude-code'
 const MAX_SHARE = 0.75
 // Columns the border and padding add around the text: `│ ` and ` │`.
 const FRAME = 4
-// The bubble's border color: azure.
-const BORDER = '#007fff'
+// The bubble's border color: cornflower.
+const BORDER = '#6495ed'
 
 // Rows the person wrote; notifications, peers' and teammates' messages keep
 // the engine's drawing.

@@ -19,11 +19,12 @@ Shorter, quieter tool rows.
 - **Read / Edit / Write** show the file path relative to the folder Claude Code was started in (ctrl+click still opens it), even after Claude `cd`s elsewhere or `/cd` moves the project. Files outside the folder keep their full path. Windows paths match with either separator and in any case.
 - **Edit / Write** hide the diff and put the line counts on the row instead: `Update(notes.md) +3 -1`. An edit held for review rather than written is shown as usual.
 - **Bash** commands are put on one line (a multi-line command's lines are joined) and cut with `…` so `Bash(command)` always fits on one line, wide characters included.
+- **Bash** commands that delete files list each one beneath the row with its removed line count (`Deleted notes.md -10`) instead of a diff of all the lines each file had.
 - **Bash** output longer than 5 lines is folded behind a clickable `▸ 12 lines`; unfolded, it shows up to 500 lines and counts the rest. If the command was cut or joined, the fold also holds the full command with syntax highlighting (`▸ command, 12 lines`); with 5 lines of output or fewer, the output stays as it is and the fold holds the command alone (`▸ command`).
 
 ### prompt-bubbles
 
-Your own prompts are drawn as right-aligned chat bubbles (a cyan rounded box, as wide as the longest line and at most three quarters of the terminal) so they stand apart from Claude's replies. Task notifications and messages from other agents or sessions keep the usual drawing, and so does the desktop app, which already has bubbles.
+Your own prompts are drawn as right-aligned chat bubbles (a rounded box with a cornflower-blue border, as wide as the longest line and at most three quarters of the terminal) so they stand apart from Claude's replies. Task notifications and messages from other agents or sessions keep the usual drawing, and so does the desktop app, which already has bubbles.
 
 ## Development
 

@@ -10,6 +10,16 @@ Claude Code plugins that change how the terminal UI looks. They only change rend
 /plugin install prompt-bubbles@akilin-plugins
 ```
 
+## Screenshots
+
+With both plugins:
+
+![A session with better-tool-rows and prompt-bubbles](docs/with-plugins.png)
+
+The same session without them (zoomed out to fit on one screen):
+
+![The same session without the plugins](docs/without-plugins.png)
+
 ## Plugins
 
 ### better-tool-rows

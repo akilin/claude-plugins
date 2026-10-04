@@ -198,3 +198,16 @@ test('counts that would not fit after a path inside a group go on a line beneath
 test('counts that fit after the path are laid on the row', async ($, on) => {
   expect(await countsBeneath($, on, `${ROOT}/a.md`)).toBe(false)
 })
+
+test('the counts are laid over the label line, not the output a grouped row draws beneath it', async ($, on) => {
+  stubRoot(on, ROOT)
+  stubRow(on, () => '\n● Update(a.md)\n    1 -old\n    1 +new')
+
+  const ui = await mountRow($, 'Edit', { input: { file_path: `${ROOT}/a.md` }, output: edited })
+  const boxes = await ui.findAll({ type: 'Box' })
+  await ui.unmount()
+
+  const overlay = boxes.find(box => (box.props as { left?: number }).left === textWidth('● Update(a.md)') + 1)
+  expect(overlay?.props).toMatchObject({ position: 'absolute', top: 1 })
+  expect((overlay?.props as { bottom?: number }).bottom).toBeUndefined()
+})

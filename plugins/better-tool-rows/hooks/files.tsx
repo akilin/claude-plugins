@@ -149,7 +149,8 @@ export const registerFiles: Register = on => {
 
       // `Update(potato.md) +1 -1`, a side left out when it is zero. The
       // engine's row is as wide as the line and opens with a blank line, so the
-      // counts are laid over its last line, 1 column past the end of its text.
+      // counts are laid over its second line, 1 column past the end of its
+      // text: the label's, as for the link, not an expanded group's output.
       // A label too long for the line (less a group's indent) wraps, and the
       // counts go beneath it.
       const elements = $.ui.resolve(e)
@@ -181,7 +182,7 @@ export const registerFiles: Register = on => {
       return (
         <Box>
           {row}
-          <Box position="absolute" bottom={0} left={labelWidth + 1}>
+          <Box position="absolute" top={1} left={labelWidth + 1}>
             {countsText}
           </Box>
         </Box>

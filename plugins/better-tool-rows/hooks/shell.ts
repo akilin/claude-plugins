@@ -1,14 +1,18 @@
 import { fitWidth, stripControl, textWidth } from './utils'
 
-// Terminal escape sequences: CSI (colours, cursor moves), OSC (titles,
-// hyperlinks) up to its BEL or ST, and the short ones (charset switches and
-// the like).
-const ESCAPE = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b\n]*(?:\x07|\x1b\\)?|[ -/]*[0-~])/g
+// Terminal escape sequences: CSI (colours, cursor moves), the strings (OSC
+// titles and hyperlinks, DCS, SOS, PM, APC) up to their BEL or ST, and the
+// short ones (charset switches and the like); CSI and the strings in their
+// 8-bit forms too.
+const ESCAPE =
+  /(?:\x1b\[|\x9b)[0-?]*[ -/]*[@-~]|(?:\x1b[P\]X^_]|[\x90\x98\x9d\x9e\x9f])[^\x07\x1b\x9c\n]*(?:\x07|\x9c|\x1b\\)?|\x1b[ -/]*[0-~]/g
 
 // A line as a terminal leaves it: each carriage return goes back to its
 // start and the text after it writes over what was there (a progress bar's
-// last state; a CRLF's line unchanged).
-const overwrite = (line: string) => line.split('\r').reduce((shown, part) => part + shown.slice(part.length), '')
+// last state; a CRLF's line unchanged). Counted in characters, so an emoji
+// is never cut in half.
+const overwrite = (line: string) =>
+  line.split('\r').reduce((shown, part) => part + [...shown].slice([...part].length).join(''), '')
 
 // What a Bash call printed, both streams (for a call that failed, the text
 // the model read), as the lines a Text can draw: no escape sequences or other

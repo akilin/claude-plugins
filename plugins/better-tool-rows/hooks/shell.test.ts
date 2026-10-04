@@ -14,10 +14,20 @@ test('a shell result drops hyperlinks, titles and charset switches, keeping thei
   expect(shellLines({ stdout: '\x1b]0;title\x07a\x1b(Bb' })).toEqual(['ab'])
 })
 
+test('a shell result drops device control and other escape strings, and 8-bit sequences', () => {
+  expect(shellLines({ stdout: '\x1bP1$r0m\x1b\\done' })).toEqual(['done'])
+  expect(shellLines({ stdout: 'a\x1b_app\x07b\x1b^pm\x1b\\c\x1bXsos\x1b\\d' })).toEqual(['abcd'])
+  expect(shellLines({ stdout: '\x9b31mred\x9b0m' })).toEqual(['red'])
+  expect(shellLines({ stdout: '\x9d0;title\x9ca\x90q\x9cb' })).toEqual(['ab'])
+  expect(shellLines({ stdout: 'Plain X^_ text' })).toEqual(['Plain X^_ text'])
+})
+
 test('a shell result shows a line carriage returns wrote over as a terminal leaves it', () => {
   expect(shellLines({ stdout: '10%\r50%\r100%\n' })).toEqual(['100%'])
   expect(shellLines({ stdout: 'abcdef\r12\n' })).toEqual(['12cdef'])
   expect(shellLines({ stdout: 'one\r\ntwo\r\n' })).toEqual(['one', 'two'])
+  expect(shellLines({ stdout: '😀😀x\rA' })).toEqual(['A😀x'])
+  expect(shellLines({ stdout: 'héllo\r😀' })).toEqual(['😀éllo'])
 })
 
 test('a shell result has no trailing blank lines', () => {

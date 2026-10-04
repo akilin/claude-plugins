@@ -26,6 +26,9 @@ test('a bubble fits its longest line and stops at three quarters of the width', 
   expect(bubbleWidth('one\nlonger line', 80)).toBe(15)
   expect(bubbleWidth('x'.repeat(200), 80)).toBe(60)
   expect(textWidth('日本')).toBe(4)
+  expect(textWidth('✅ ❌ ⭐')).toBe(8)
+  expect(textWidth('\u2764\ufe0f')).toBe(2)
+  expect(textWidth('👨\u200d👩\u200d👧')).toBe(2)
 })
 
 test('the person’s prompt is drawn as a right-aligned bubble', async ($, on) => {

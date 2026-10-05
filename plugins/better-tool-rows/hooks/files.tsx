@@ -39,7 +39,9 @@ const withShortPath = <E extends { props: { input?: unknown } }>(e: E, root: str
 // remote surface links https: alone), for a path drawn in full, and for a
 // label too long for the line, whose path wraps out from under the link.
 // Laid over the label's line, the row's second (it opens with a blank line),
-// not its last: an expanded group's row draws its output beneath it.
+// not its last: an expanded group's row draws its output beneath it. Clipped
+// to the path, as a terminal without hyperlinks draws the URL after the text,
+// which would cover the rest of the row.
 const withFullPathLink = (
   $: EngineInterface,
   e: RenderInput<'ToolUse'>,
@@ -57,7 +59,14 @@ const withFullPathLink = (
   return (
     <Box>
       {row}
-      <Box position="absolute" top={1} left={textWidth(toolLabel(name, '')) - 1}>
+      <Box
+        position="absolute"
+        top={1}
+        left={textWidth(toolLabel(name, '')) - 1}
+        width={textWidth(short.path)}
+        height={1}
+        overflow="hidden"
+      >
         <Link href={fileUrl(short.full)}>{short.path}</Link>
       </Box>
     </Box>

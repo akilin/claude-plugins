@@ -73,6 +73,18 @@ test('the link is laid over the label line, not the output a grouped row draws b
   expect((overlay?.props as { bottom?: number }).bottom).toBeUndefined()
 })
 
+test('the link is clipped to the path, so a URL drawn after it covers nothing', async ($, on) => {
+  stubRoot(on, ROOT)
+  stubRow(on, () => '\n● Read(src/a.md)')
+
+  const ui = await mountRow($, 'Read', { input: { file_path: `${ROOT}/src/a.md` }, output: { type: 'text' } })
+  const boxes = await ui.findAll({ type: 'Box' })
+  await ui.unmount()
+
+  const overlay = boxes.find(box => (box.props as { position?: string }).position === 'absolute')
+  expect(overlay?.props).toMatchObject({ width: textWidth('src/a.md'), height: 1, overflow: 'hidden' })
+})
+
 test('a path drawn in full, or too long for the line, keeps the link the engine draws', async ($, on) => {
   stubRoot(on, ROOT)
   stubRow(on, () => 'row')

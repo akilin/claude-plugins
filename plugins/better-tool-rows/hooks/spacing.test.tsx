@@ -70,3 +70,60 @@ test('only an Edit or Write drawn with its counts is one line', () => {
   expect(isOneLine(call('a', 'Read', { result: { type: 'text' } }))).toBe(false)
   expect(isOneLine(call('a', 'Bash', { result: { stdout: '' } }))).toBe(false)
 })
+
+// How often the transcript is read across `drawings` of a Bash row (toolu_1),
+// finished or running, over `messages`.
+const readsOver = async (
+  $: Parameters<TestBody>[0],
+  on: Parameters<TestBody>[1],
+  messages: SessionMessage[],
+  isRunning: boolean,
+  drawings = 2,
+) => {
+  let reads = 0
+  stubRow(on, () => 'row')
+  on('session.messages', () => {
+    reads++
+    return { value: messages }
+  })
+  for (let i = 0; i < drawings; i++) {
+    const ui = await mountRow($, 'Bash', { input: { command: 'ls' }, isRunning })
+    await ui.unmount()
+  }
+  return reads
+}
+
+test('a finished row the transcript does not hold stops reading it once two reads missed it', async ($, on) => {
+  expect(await readsOver($, on, [reply('', call('other'))], false, 4)).toBe(2)
+})
+
+test('a finished row missing from one read is found by the next', async ($, on) => {
+  let reads = 0
+  stubRow(on, () => 'row')
+  on('session.messages', () => {
+    reads++
+    const above = call('e', 'Edit', { result: edit, text: 'ok' })
+    return { value: reads === 1 ? [reply('', above)] : [reply('', above), results(), reply('', call('toolu_1'))] }
+  })
+  const margins = []
+  for (let i = 0; i < 2; i++) {
+    const ui = await mountRow($, 'Bash', { input: { command: 'ls' } })
+    margins.push((await ui.findAll({ type: 'Box' })).map(box => (box.props as { marginTop?: number }).marginTop))
+    await ui.unmount()
+  }
+  expect(margins[0]).not.toContain(-1)
+  expect(margins[1]).toContain(-1)
+})
+
+test('a row under a finished call reads the transcript once', async ($, on) => {
+  const above = call('e', 'Edit', { result: edit, text: 'ok' })
+  expect(await readsOver($, on, [reply('', above), results(), reply('', call('toolu_1'))], false)).toBe(1)
+})
+
+test('a running row the transcript does not hold yet reads it again', async ($, on) => {
+  expect(await readsOver($, on, [reply('', call('other'))], true)).toBe(2)
+})
+
+test('a row under a call still running reads the transcript again', async ($, on) => {
+  expect(await readsOver($, on, [reply('', call('e', 'Edit'), call('toolu_1'))], false)).toBe(2)
+})

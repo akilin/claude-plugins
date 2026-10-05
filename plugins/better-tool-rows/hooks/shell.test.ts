@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { commandSource, shellLines, shortCommand, withOverwrites } from './shell'
+import { commandShape, commandSource, isShapeCut, shellLines, shortCommand, withOverwrites } from './shell'
 
 test('a shell result is the lines of both its streams, or of the text a failed call read', () => {
   expect(shellLines({ stdout: '1\n2\n', stderr: 'warn' })).toEqual(['1', '2', 'warn'])
@@ -60,4 +60,13 @@ test('a command is cut by the columns it takes, never past its room', () => {
 test('a command source is cut to its length, never inside a surrogate pair', () => {
   expect(commandSource(`a${'😀'.repeat(5000)}`)).toBe(`a${'😀'.repeat(4999)}`)
   expect(commandSource('echo hi\n\n')).toBe('echo hi')
+})
+
+test('a command shape is cut at every room just where the command is', () => {
+  const commands = ['seq 1 3', 'echo one && \\\n  echo two', 'echo 0123456789', 'echo \u202etxt.exe', 'echo 笔记笔记笔记', '  ls  ', '']
+  for (const command of commands) {
+    for (let room = -1; room <= 25; room++) {
+      expect(isShapeCut(commandShape(command), room)).toBe(shortCommand(command, room).isCut)
+    }
+  }
 })

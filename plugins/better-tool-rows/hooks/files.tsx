@@ -4,8 +4,8 @@ import type { EngineInterface, Register, RenderElement, RenderInput } from 'clau
 import {
   drawNothing,
   fileUrl,
+  fitEnd,
   GROUP_INDENT,
-  gutterLine,
   shortPath,
   textWidth,
   toolLabel,
@@ -33,11 +33,22 @@ const withShortPath = <E extends { props: { input?: unknown } }>(e: E, root: str
   return { e: withInput(e, { file_path: path }), path, full: input.file_path }
 }
 
+// A shorter path as withShortPath makes it, cut to its end with `…` when it
+// is wider than `room` columns; the link still goes to the full one.
+const withPathIn = <S extends { e: { props: { input?: unknown } }; path: string }>(short: S, room: number): S => {
+  if (textWidth(short.path) <= room) {
+    return short
+  }
+  const path = `…${fitEnd(short.path, Math.max(room, 1) - 1)}`
+  return { ...short, e: withInput(short.e, { file_path: path }), path }
+}
+
 // The engine's row with its path linked to the full path, not the shorter one
 // it was handed: the same text laid over it as a link, so a terminal opens it
 // on ctrl+click wherever it resolves from. Left as it is off the terminal (a
 // remote surface links https: alone), for a path drawn in full, and for a
-// label too long for the line, whose path wraps out from under the link.
+// label too long for the line, whose path wraps out from under the link, and
+// for a path no URL can hold.
 // Laid over the label's line, the row's second (it opens with a blank line),
 // not its last: an expanded group's row draws its output beneath it. Clipped
 // to the path, as a terminal without hyperlinks draws the URL after the text,
@@ -52,7 +63,8 @@ const withFullPathLink = (
   if (e.surface !== 'terminal' || short.path === short.full) {
     return row
   }
-  if (textWidth(toolLabel(name, short.path)) > viewportColumns(e) - GROUP_INDENT) {
+  const href = fileUrl(short.full)
+  if (href === undefined || textWidth(toolLabel(name, short.path)) > viewportColumns(e) - GROUP_INDENT) {
     return row
   }
   const { Box, Link } = $.ui.resolve(e)
@@ -67,7 +79,7 @@ const withFullPathLink = (
         height={1}
         overflow="hidden"
       >
-        <Link href={fileUrl(short.full)}>{short.path}</Link>
+        <Link href={href}>{short.path}</Link>
       </Box>
     </Box>
   )
@@ -149,20 +161,19 @@ export const registerFiles: Register = on => {
         return next(e)
       }
       const name = rowName(tool, e.props.input as { old_string?: unknown })
-      const row = withFullPathLink($, e, await next(short.e), name, short)
-
       const counts = countsOf(e.props.isErrored, e.props.output)
       if (!counts) {
-        return row
+        return withFullPathLink($, e, await next(short.e), name, short)
       }
 
       // `Update(potato.md) +1 -1`, a side left out when it is zero. The
       // engine's row is as wide as the line and opens with a blank line, so the
-      // counts are laid over its last line, 1 column past the end of its text.
-      // A label too long for the line (less a group's indent) wraps, and the
-      // counts go beneath it.
-      const elements = $.ui.resolve(e)
-      const { Box, Text } = elements
+      // counts are laid over its second line, 1 column past the end of its
+      // text: the label's, as for the link, not an expanded group's output.
+      // The row stays one line, as the spacing above the next row takes it:
+      // a path too long for the line (less a group's indent) with the counts
+      // beside it is cut to its end.
+      const { Box, Text } = $.ui.resolve(e)
       const sides = [
         { text: `+${counts.added}`, color: 'success' as const, isShown: counts.added > 0 },
         { text: `-${counts.removed}`, color: 'error' as const, isShown: counts.removed > 0 },
@@ -177,20 +188,13 @@ export const registerFiles: Register = on => {
           ])}
         </Text>
       )
-      const labelWidth = textWidth(toolLabel(name, short.path))
       const countsWidth = textWidth(sides.map(side => side.text).join(' '))
-      if (labelWidth + 1 + countsWidth > viewportColumns(e) - GROUP_INDENT) {
-        return (
-          <Box flexDirection="column">
-            {row}
-            {gutterLine(elements, countsText)}
-          </Box>
-        )
-      }
+      const room = viewportColumns(e) - GROUP_INDENT - textWidth(toolLabel(name, '')) - 1 - countsWidth
+      const cut = withPathIn(short, room)
       return (
         <Box>
-          {row}
-          <Box position="absolute" bottom={0} left={labelWidth + 1}>
+          {withFullPathLink($, e, await next(cut.e), name, cut)}
+          <Box position="absolute" top={1} left={textWidth(toolLabel(name, cut.path)) + 1}>
             {countsText}
           </Box>
         </Box>

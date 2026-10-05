@@ -1,7 +1,8 @@
 import { atom, memberOf, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { commandSource, shellLines, shortCommand, withOverwrites } from './shell'
+import { commandShape, commandSource, isShapeCut, shellLines, shortCommand, withOverwrites } from './shell'
+import type { CommandShape } from './shell'
 import {
   drawNothing,
   GROUP_INDENT,
@@ -16,9 +17,10 @@ import {
 
 const isOutputOpen = atom({ plugin: 'better-tool-rows', key: 'isOutputOpen' } as const, false)
 
-// The command each Bash call was made with, for the result beneath its row,
-// which is not handed the call's input.
-const commandOf = atom({ plugin: 'better-tool-rows', key: 'command' } as const, null)
+// The shape of the command each Bash call was made with, for the result
+// beneath its row, which is not handed the call's input. The shape, not the
+// command, so a session's heredocs are not all kept.
+const commandShapeOf = atom({ plugin: 'better-tool-rows', key: 'commandShape' } as const, null)
 
 // The project root paths are shown relative to, as files.tsx records it. Not
 // imported from there: the engine only reads state through an atom declared
@@ -69,12 +71,12 @@ const forEngine = (output: unknown) => (isPlain(output) ? withOverwrites(output)
 //   group's output in its row and a standalone row's as its result, so only
 //   a result that knows its command can tell to draw nothing;
 // - any other is the engine's.
-const rowLines = (output: unknown, command: string | null, columns: number) => {
+const rowLines = (output: unknown, shape: CommandShape | null, columns: number) => {
   if (!isPlain(output)) {
     return undefined
   }
   const lines = shellLines(output)
-  const isCut = command !== null && shortCommand(command, commandRoom(columns)).isCut
+  const isCut = shape !== null && isShapeCut(shape, commandRoom(columns))
   return lines.length > FOLD_OVER || isCut ? lines : undefined
 }
 
@@ -109,11 +111,11 @@ export const withoutWholeFiles = (output: unknown) => {
 }
 
 export const registerBash: Register = on => {
-  // Each Bash call's command is kept by its tool_use_id as it is made.
+  // Each Bash call's command shape is kept by its tool_use_id as it is made.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     if (typeof e.command === 'string') {
-      const command = e.command
-      await update($, memberOf(commandOf, { requestId: e.tool_use_id }), () => command)
+      const shape = commandShape(e.command)
+      await update($, memberOf(commandShapeOf, { requestId: e.tool_use_id }), () => shape)
     }
     return next(e)
   })
@@ -140,7 +142,7 @@ export const registerBash: Register = on => {
       return next(withCommand)
     }
     const { output, wholeFiles } = withoutWholeFiles(e.props.output)
-    const lines = rowLines(output, await read($, memberOf(commandOf, { requestId: e.props.tool_use_id })), columns)
+    const lines = rowLines(output, await read($, memberOf(commandShapeOf, { requestId: e.props.tool_use_id })), columns)
     const short = { ...withCommand, props: { ...withCommand.props, output: forEngine(output) } }
     const elements = $.ui.resolve(e)
     const { Box, Button, Code, Text } = elements
@@ -224,11 +226,11 @@ export const registerBash: Register = on => {
   // without those files, and with the lines carriage returns wrote over as a
   // terminal leaves them.
   on('ui.render', { component: 'ToolResult', props: { tool: 'Bash' } }, async ($, e, next) => {
-    const command = await read($, memberOf(commandOf, { requestId: e.props.tool_use_id }))
+    const shape = await read($, memberOf(commandShapeOf, { requestId: e.props.tool_use_id }))
     const { output, wholeFiles } = withoutWholeFiles(e.props.output)
     const isOnlyWholeFiles =
       wholeFiles.length > 0 && isPlain(output) && !('bashEditDiff' in (output as object)) && shellLines(output).length === 0
-    return rowLines(output, command, viewportColumns(e)) === undefined && !isOnlyWholeFiles
+    return rowLines(output, shape, viewportColumns(e)) === undefined && !isOnlyWholeFiles
       ? next({ ...e, props: { ...e.props, output: forEngine(output) } })
       : drawNothing($.ui.resolve(e))
   })

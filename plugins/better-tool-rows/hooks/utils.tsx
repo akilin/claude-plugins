@@ -133,6 +133,31 @@ export const fitWidth = (text: string, room: number) => {
   return fit
 }
 
+// The longest end of `text` that fits in `room` columns, never opening on a
+// combining mark, an emoji selector or a character joined on by a ZWJ.
+export const fitEnd = (text: string, room: number) => {
+  const clusters: { text: string; width: number }[] = []
+  for (const [char, charColumns] of charWidths(text)) {
+    const last = clusters.at(-1)
+    if (last && (charColumns === 0 || char === EMOJI_STYLE)) {
+      last.text += char
+      last.width += charColumns
+    } else {
+      clusters.push({ text: char, width: charColumns })
+    }
+  }
+  let width = 0
+  let fit = ''
+  for (const cluster of clusters.reverse()) {
+    width += cluster.width
+    if (width > room) {
+      break
+    }
+    fit = cluster.text + fit
+  }
+  return fit
+}
+
 // `text` without control characters (C0, DEL, C1, and the bidi overrides and
 // isolates that would make it read in another order), but for those in `keep`.
 export const stripControl = (text: string, keep = '') =>
@@ -152,11 +177,16 @@ export const shortPath = (path: string, root: string) => {
 
 // A file:// URL to `path`, which a terminal opens on ctrl+click wherever it
 // was started: a Windows path with forward slashes, a UNC one as its host,
-// either without the `\\?\` long-path prefix.
+// either without the `\\?\` long-path prefix. Undefined for a path no URL
+// can hold: one with a lone surrogate, as a Windows file name can have.
 export const fileUrl = (path: string) => {
   const slashed = path.replace(/\\/g, '/').replace(/^\/\/\?\/(UNC\/)?/i, (_, unc) => (unc ? '//' : ''))
   const url = slashed.startsWith('//') ? `file:${slashed}` : `file://${slashed.startsWith('/') ? '' : '/'}${slashed}`
-  return encodeURI(url).replace(/[?#]/g, encodeURIComponent)
+  try {
+    return encodeURI(url).replace(/[?#]/g, encodeURIComponent)
+  } catch {
+    return undefined
+  }
 }
 
 // The render event with some of the tool call's input replaced, for the

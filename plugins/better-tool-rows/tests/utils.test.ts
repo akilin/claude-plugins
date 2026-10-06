@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { fileUrl, fitEnd, fitWidth, shortPath, stripControl, textWidth } from './utils'
+import { fileUrl, fitEnd, fitWidth, shortPath, stripControl, textWidth } from '../hooks/utils'
 
 const ROOT = '/home/me/project'
 

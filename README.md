@@ -26,7 +26,7 @@ The same session without them (zoomed out to fit on one screen):
 
 Shorter, quieter tool rows.
 
-- **Read / Edit / Write** show the file path relative to the folder Claude Code was started in (the link behind it still holds the full path, so ctrl+click opens it from anywhere), even after Claude `cd`s elsewhere or `/cd` moves the project. Files outside the folder keep their full path. Windows paths match with either separator and in any case.
+- **Read / Edit / Write** show the file path relative to the folder Claude Code was started in (the link behind it still holds the full path, so ctrl+click opens it from anywhere), even after Claude `cd`s elsewhere or `/cd` moves the project. Files outside the folder keep their full path. Windows paths match with either separator and in any case. In a VS Code dev container or codespace the `file://` link is left off, since VS Code would open it on the machine outside the container; ctrl+click on the path then uses VS Code's own link, which opens the file inside.
 - **Edit / Write** hide the diff and put the line counts on the row instead: `Update(notes.md) +3 -1`. A path too long to fit on the line with its counts is cut to its end (`Update(…/src/notes.md) +3 -1`), still opening the full path on ctrl+click. An edit held for review rather than written is shown as usual.
 - A tool row straight after a one-line **Edit / Write** row drops the blank line above it, so a run of edits reads as a list. After text, or after a row with lines beneath it (Bash output, Read's `Read 7 lines`), the blank line stays.
 - **Bash** commands are put on one line (a multi-line command's lines are joined) and cut with `…` so `Bash(command)` always fits on one line, wide characters included.

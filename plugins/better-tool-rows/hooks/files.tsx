@@ -43,24 +43,30 @@ const withPathIn = <S extends { e: { props: { input?: unknown } }; path: string 
   return { ...short, e: withInput(short.e, { file_path: path }), path }
 }
 
+// Whether Claude Code runs in a dev container or a codespace, whose VS Code
+// terminal opens a file:// URL on the machine outside it, where the file is
+// not. Its own link on a path's text opens the file inside.
+const isInContainer = async ($: EngineInterface) =>
+  (await $.env.get('REMOTE_CONTAINERS')) === 'true' || (await $.env.get('CODESPACES')) === 'true'
+
 // The engine's row with its path linked to the full path, not the shorter one
 // it was handed: the same text laid over it as a link, so a terminal opens it
 // on ctrl+click wherever it resolves from. Left as it is off the terminal (a
 // remote surface links https: alone), for a path drawn in full, and for a
 // label too long for the line, whose path wraps out from under the link, and
-// for a path no URL can hold.
+// for a path no URL can hold, and in a dev container.
 // Laid over the label's line, the row's second (it opens with a blank line),
 // not its last: an expanded group's row draws its output beneath it. Clipped
 // to the path, as a terminal without hyperlinks draws the URL after the text,
 // which would cover the rest of the row.
-const withFullPathLink = (
+const withFullPathLink = async (
   $: EngineInterface,
   e: RenderInput<'ToolUse'>,
   row: RenderElement,
   name: string,
   short: { path: string; full: string },
 ) => {
-  if (e.surface !== 'terminal' || short.path === short.full) {
+  if (e.surface !== 'terminal' || short.path === short.full || (await isInContainer($))) {
     return row
   }
   const href = fileUrl(short.full)
@@ -193,7 +199,7 @@ export const registerFiles: Register = on => {
       const cut = withPathIn(short, room)
       return (
         <Box>
-          {withFullPathLink($, e, await next(cut.e), name, cut)}
+          {await withFullPathLink($, e, await next(cut.e), name, cut)}
           <Box position="absolute" top={1} left={textWidth(toolLabel(name, cut.path)) + 1}>
             {countsText}
           </Box>

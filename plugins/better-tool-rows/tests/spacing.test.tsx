@@ -2,7 +2,7 @@ import type { SessionMessage, ToolUseSummary } from 'claude-code'
 import { expect, test, type TestBody } from 'claude-code/testing'
 
 import { mountRow, stubRow } from './mount'
-import { isOneLine, recordCallsAbove } from './spacing'
+import { isOneLine, recordCallsAbove } from '../hooks/spacing'
 
 const call = (tool_use_id: string, tool = 'Bash', fields: Partial<ToolUseSummary> = {}): ToolUseSummary => ({
   tool_use_id,

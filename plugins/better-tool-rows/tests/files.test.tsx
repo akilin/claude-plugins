@@ -1,8 +1,8 @@
 import { expect, test, type TestBody } from 'claude-code/testing'
 
-import { changeCounts, rowLabel } from './files'
+import { changeCounts, rowLabel } from '../hooks/files'
 import { mountResult, mountRow, stubResult, stubRoot, stubRow } from './mount'
-import { textWidth } from './utils'
+import { textWidth } from '../hooks/utils'
 
 const ROOT = '/home/me/project'
 const patch = (...lines: string[]) => [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines }]
@@ -95,6 +95,17 @@ test('a path drawn in full, too long for the line, or no URL can hold, keeps the
     await ui.unmount()
   }
 })
+
+for (const name of ['REMOTE_CONTAINERS', 'CODESPACES']) {
+  test(`in a dev container (${name}) the path is left for VS Code's terminal to link`, async ($, on) => {
+    stubRoot(on, ROOT, { [name]: 'true' })
+    stubRow(on, () => 'row')
+
+    const ui = await mountRow($, 'Read', { input: { file_path: `${ROOT}/src/a.md` } })
+    expect(await ui.find({ type: 'Link' })).toBeUndefined()
+    await ui.unmount()
+  })
+}
 
 test('paths stay relative to the folder the session started in after the project root moves', async ($, on) => {
   let root = ROOT

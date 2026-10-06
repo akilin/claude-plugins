@@ -1,9 +1,9 @@
 import type { RenderPropsOf } from 'claude-code'
 import { expect, test, type TestBody } from 'claude-code/testing'
 
-import { commandRoom, FOLD_OVER, withoutWholeFiles } from './bash'
+import { commandRoom, FOLD_OVER, withoutWholeFiles } from '../hooks/bash'
 import { mountResult, mountRow, stubResult, stubRoot, stubRow } from './mount'
-import { GROUP_INDENT, textWidth, toolLabel } from './utils'
+import { GROUP_INDENT, textWidth, toolLabel } from '../hooks/utils'
 
 const LONG = `echo ${'x'.repeat(200)} && \\\n  echo done`
 

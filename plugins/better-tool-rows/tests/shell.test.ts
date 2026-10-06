@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { commandShape, commandSource, isShapeCut, shellLines, shortCommand, withOverwrites } from './shell'
+import { commandShape, commandSource, isShapeCut, shellLines, shortCommand, withOverwrites } from '../hooks/shell'
 
 test('a shell result is the lines of both its streams, or of the text a failed call read', () => {
   expect(shellLines({ stdout: '1\n2\n', stderr: 'warn' })).toEqual(['1', '2', 'warn'])

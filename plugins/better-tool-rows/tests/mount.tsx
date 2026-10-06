@@ -1,5 +1,5 @@
 import type { RenderPropsOf } from 'claude-code'
-import type { Engine, TestBody } from 'claude-code/testing'
+import { mock, type Engine, type TestBody } from 'claude-code/testing'
 
 type On = Parameters<TestBody>[1]
 
@@ -39,5 +39,9 @@ export const stubResult = (on: On, text: string) =>
     return <Text>{text}</Text>
   })
 
-// The session's project root is `root`.
-export const stubRoot = (on: On, root: string) => on('session.root', () => ({ value: root }))
+// The session's project root is `root`, on the machine its terminal runs on:
+// none of a dev container's variables are set, whatever the test runs in.
+export const stubRoot = (on: On, root: string, env: Record<string, string> = {}) => {
+  on('session.root', () => ({ value: root }))
+  mock.env(on, env)
+}

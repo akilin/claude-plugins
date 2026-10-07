@@ -119,14 +119,21 @@ export const bubbleWidth = (text: string, columns: number) => {
 
 // A paste reaches the model wrapped as `<pasted_content id="…">` …
 // `</pasted_content id="…">`, with tags of that name inside it escaped as
-// `<\pasted_content` and `<\/pasted_content`.
-const PASTE = /<pasted_content id="([^"]*)">\n?([\s\S]*?)\n?<\/pasted_content id="\1">/g
+// `<\pasted_content` and `<\/pasted_content`. The engine pads the wrapper with
+// blank lines, so the newlines around it are taken as part of it.
+const PASTE = /\n*<pasted_content id="([^"]*)">\n?([\s\S]*?)\n?<\/pasted_content id="\1">\n*/g
 const ESCAPED_TAG = /<\\(\\*\/?pasted_content\b)/g
 
-// The prompt as the person pasted it: each paste's wrapper dropped and the
-// tags inside it unescaped once.
+// The prompt as the person pasted it: each paste's wrapper and padding
+// dropped, the paste on lines of its own, and the tags inside it unescaped
+// once.
 export const unwrapPastes = (text: string) =>
-  text.replace(PASTE, (_, _id, body: string) => body.replace(ESCAPED_TAG, '<$1'))
+  text.replace(PASTE, (wrapped: string, _id, body: string, at: number) => {
+    const end = at + wrapped.length
+    const before = at > 0 ? '\n' : ''
+    const after = end < text.length && !text.startsWith('<pasted_content id="', end) ? '\n' : ''
+    return before + body.replace(ESCAPED_TAG, '<$1') + after
+  })
 
 export const register: Register = on => {
   on('ui.render', { component: 'UserMessage' }, ($, e, next) => {

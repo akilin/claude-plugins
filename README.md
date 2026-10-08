@@ -4,11 +4,28 @@ Claude Code plugins that change how the terminal UI looks. They only change rend
 
 ## Install
 
+From your shell:
+
 ```
-/plugin marketplace add akilin/claude-plugins
-/plugin install better-tool-rows@akilin-plugins
-/plugin install prompt-bubbles@akilin-plugins
+claude plugin marketplace add akilin/claude-plugins
+claude plugin install better-tool-rows@akilin-plugins
+claude plugin install prompt-bubbles@akilin-plugins
 ```
+
+Then run `/reload-plugins` in any open session, or restart it.
+
+## Update
+
+From your shell:
+
+```
+claude plugin update better-tool-rows@akilin-plugins
+claude plugin update prompt-bubbles@akilin-plugins
+```
+
+Then run `/reload-plugins` in any open session, or restart it. `/plugin marketplace update akilin-plugins` alone only refreshes the plugin list and leaves installed plugins as they are.
+
+To get updates automatically, open `/plugin` → Marketplaces → `akilin-plugins` → Enable auto-update.
 
 ## Screenshots
 

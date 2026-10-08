@@ -51,6 +51,7 @@ test('a paste is drawn without its wrapper, the tags inside it unescaped', async
   )
   expect(unwrapPastes('<\\pasted_content id="c"> typed')).toBe('<\\pasted_content id="c"> typed')
   expect(unwrapPastes('---\n\n\n<pasted_content id="d">\nfirst\n</pasted_content id="d">\n')).toBe('---\nfirst')
+  expect(unwrapPastes('lines:\n\n<pasted_content id="h">\nAdd\nmore.\n</pasted_content id="h">\n')).toBe('lines:\nAdd\nmore.')
   expect(unwrapPastes('a\n\n<pasted_content id="e">\nx\n</pasted_content id="e">\n\nb')).toBe('a\nx\nb')
   expect(unwrapPastes('<pasted_content id="f">\nx\n</pasted_content id="f">\n\n<pasted_content id="g">\ny\n</pasted_content id="g">')).toBe('x\ny')
   const ui = await mountMessage($, on, { text: 'see\r\n<pasted_content id="z9">\r\none\r\ntwo\r\n</pasted_content id="z9">' })

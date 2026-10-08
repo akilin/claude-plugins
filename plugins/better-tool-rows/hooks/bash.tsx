@@ -85,26 +85,25 @@ type EditDiff = {
   moreFiles?: number
 }
 
-// A Bash output without the files its command created or deleted in its diff,
-// which the engine draws as every line each one has or had, and those files
-// with that count of lines, in the diff's order. The diff goes with them when
-// nothing else is left in it.
-export const withoutWholeFiles = (output: unknown) => {
+// A Bash output without the files its command created, deleted or updated in
+// its diff, which the engine draws as every line each one has or had, or as
+// the hunks it changed, and those files with the lines added and removed, in
+// the diff's order. The diff stays, emptied, for the files it left uncounted.
+export const withoutFileDiffs = (output: unknown) => {
   const diff = (output as { bashEditDiff?: EditDiff } | null)?.bashEditDiff
-  const isWhole = (file: EditDiff['files'][number]) => file.created === true || file.deleted === true
-  if (typeof output !== 'object' || output === null || !Array.isArray(diff?.files) || !diff.files.some(isWhole)) {
-    return { output, wholeFiles: [] }
+  if (typeof output !== 'object' || output === null || !Array.isArray(diff?.files) || diff.files.length === 0) {
+    return { output, changedFiles: [] }
   }
-  const kept = diff.files.filter(file => !isWhole(file))
   const { bashEditDiff: _, ...rest } = output as { bashEditDiff: EditDiff }
   return {
-    output: kept.length === 0 && !diff.moreFiles ? rest : { ...output, bashEditDiff: { ...diff, files: kept } },
-    wholeFiles: diff.files.filter(isWhole).map(file => {
-      const sign = file.deleted ? '-' : '+'
+    output: diff.moreFiles ? { ...output, bashEditDiff: { ...diff, files: [] } } : rest,
+    changedFiles: diff.files.map(file => {
+      const changed = (file.hunks ?? []).flatMap(hunk => hunk.lines ?? [])
       return {
         path: file.filePath,
-        isDeleted: file.deleted === true,
-        lines: (file.hunks ?? []).flatMap(hunk => hunk.lines ?? []).filter(line => line.startsWith(sign)).length,
+        change: file.created === true ? 'Created' : file.deleted === true ? 'Deleted' : 'Updated',
+        added: changed.filter(line => line.startsWith('+')).length,
+        removed: changed.filter(line => line.startsWith('-')).length,
       }
     }),
   }
@@ -141,34 +140,39 @@ export const registerBash: Register = on => {
     if (e.props.isRunning) {
       return next(withCommand)
     }
-    const { output, wholeFiles } = withoutWholeFiles(e.props.output)
+    const { output, changedFiles } = withoutFileDiffs(e.props.output)
     const lines = rowLines(output, await read($, memberOf(commandShapeOf, { requestId: e.props.tool_use_id })), columns)
     const short = { ...withCommand, props: { ...withCommand.props, output: forEngine(output) } }
     const elements = $.ui.resolve(e)
     const { Box, Button, Code, Text } = elements
 
-    // A file the command created or deleted, as `Created lorem.txt +10` or
-    // `Deleted lorem.txt -10` beneath the row.
-    const root = wholeFiles.length > 0 ? ((await read($, startRoot)) ?? (await $.session.root())) : ''
-    const wholeFileLines = wholeFiles.map(file =>
-      gutterLine(
+    // A file the command changed, as `Created lorem.txt +10`,
+    // `Deleted lorem.txt -10` or `Updated lorem.txt +1 -1` beneath the row, a
+    // side left out when it is zero.
+    const root = changedFiles.length > 0 ? ((await read($, startRoot)) ?? (await $.session.root())) : ''
+    const changedFileLines = changedFiles.map(file => {
+      const sides = [
+        { text: `+${file.added}`, color: 'success' as const, isShown: file.added > 0 },
+        { text: `-${file.removed}`, color: 'error' as const, isShown: file.removed > 0 },
+      ].filter(side => side.isShown)
+      return gutterLine(
         elements,
         <Text>
-          {file.isDeleted ? 'Deleted' : 'Created'} {shortPath(file.path, root)}
-          {file.lines > 0 && (
-            <Text color={file.isDeleted ? 'error' : 'success'}>
-              {` ${file.isDeleted ? '-' : '+'}${file.lines}`}
+          {file.change} {shortPath(file.path, root)}
+          {sides.map(side => (
+            <Text key={side.color} color={side.color}>
+              {` ${side.text}`}
             </Text>
-          )}
+          ))}
         </Text>,
-        `${file.isDeleted ? 'deleted' : 'created'}:${file.path}`,
-      ),
-    )
+        `${file.change}:${file.path}`,
+      )
+    })
     if (!isCut && lines === undefined) {
-      return wholeFiles.length === 0 ? next(short) : (
+      return changedFiles.length === 0 ? next(short) : (
         <Box flexDirection="column">
           {await next(short)}
-          {wholeFileLines}
+          {changedFileLines}
         </Box>
       )
     }
@@ -187,7 +191,7 @@ export const registerBash: Register = on => {
     return (
       <Box flexDirection="column">
         {await next(lines === undefined ? short : { ...short, props: { ...short.props, output: undefined } })}
-        {wholeFileLines}
+        {changedFileLines}
         {hasFold &&
           gutterLine(
             elements,
@@ -221,16 +225,16 @@ export const registerBash: Register = on => {
   })
 
   // The output a Bash row draws, its result draws nothing in place of, as it
-  // does when the files the row says were created or deleted were all the
-  // output had, rather than the engine's `Done`; the engine draws the rest
-  // without those files, and with the lines carriage returns wrote over as a
-  // terminal leaves them.
+  // does when the files the row says were changed were all the output had,
+  // rather than the engine's `Done`; the engine draws the rest without those
+  // files, and with the lines carriage returns wrote over as a terminal leaves
+  // them.
   on('ui.render', { component: 'ToolResult', props: { tool: 'Bash' } }, async ($, e, next) => {
     const shape = await read($, memberOf(commandShapeOf, { requestId: e.props.tool_use_id }))
-    const { output, wholeFiles } = withoutWholeFiles(e.props.output)
-    const isOnlyWholeFiles =
-      wholeFiles.length > 0 && isPlain(output) && !('bashEditDiff' in (output as object)) && shellLines(output).length === 0
-    return rowLines(output, shape, viewportColumns(e)) === undefined && !isOnlyWholeFiles
+    const { output, changedFiles } = withoutFileDiffs(e.props.output)
+    const isOnlyChangedFiles =
+      changedFiles.length > 0 && isPlain(output) && !('bashEditDiff' in (output as object)) && shellLines(output).length === 0
+    return rowLines(output, shape, viewportColumns(e)) === undefined && !isOnlyChangedFiles
       ? next({ ...e, props: { ...e.props, output: forEngine(output) } })
       : drawNothing($.ui.resolve(e))
   })

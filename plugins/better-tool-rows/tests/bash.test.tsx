@@ -1,7 +1,7 @@
 import type { RenderPropsOf } from 'claude-code'
 import { expect, test, type TestBody } from 'claude-code/testing'
 
-import { commandRoom, FOLD_OVER, withoutWholeFiles } from '../hooks/bash'
+import { commandRoom, FOLD_OVER, withoutFileDiffs } from '../hooks/bash'
 import { mountResult, mountRow, stubResult, stubRoot, stubRow } from './mount'
 import { GROUP_INDENT, textWidth, toolLabel } from '../hooks/utils'
 
@@ -291,27 +291,29 @@ const deletion = (withEdit: boolean) => ({
   },
 })
 
-test('withoutWholeFiles takes deleted files out of the diff and counts their lines', () => {
-  const alone = withoutWholeFiles(deletion(false))
-  expect(alone.wholeFiles).toEqual([{ path: '/repo/lorem.txt', isDeleted: true, lines: 10 }])
+test('withoutFileDiffs takes changed files out of the diff and counts their lines', () => {
+  const alone = withoutFileDiffs(deletion(false))
+  expect(alone.changedFiles).toEqual([{ path: '/repo/lorem.txt', change: 'Deleted', added: 0, removed: 10 }])
   expect('bashEditDiff' in (alone.output as object)).toBe(false)
 
-  const withEdit = withoutWholeFiles(deletion(true))
-  expect((withEdit.output as { bashEditDiff: { files: { filePath: string }[] } }).bashEditDiff.files.map(f => f.filePath)).toEqual([
-    '/repo/kept.txt',
+  const withEdit = withoutFileDiffs(deletion(true))
+  expect(withEdit.changedFiles).toEqual([
+    { path: '/repo/lorem.txt', change: 'Deleted', added: 0, removed: 10 },
+    { path: '/repo/kept.txt', change: 'Updated', added: 1, removed: 1 },
   ])
+  expect('bashEditDiff' in (withEdit.output as object)).toBe(false)
 
-  const more = withoutWholeFiles({ ...deletion(false), bashEditDiff: { ...deletion(false).bashEditDiff, moreFiles: 3 } })
+  const more = withoutFileDiffs({ ...deletion(false), bashEditDiff: { ...deletion(false).bashEditDiff, moreFiles: 3 } })
   expect((more.output as { bashEditDiff: { files: unknown[]; moreFiles: number } }).bashEditDiff).toEqual({ files: [], moreFiles: 3 })
 
   const noHunks = { ...numbers(0), bashEditDiff: { files: [{ filePath: '/repo/a.txt', deleted: true }] } }
-  expect(withoutWholeFiles(noHunks).wholeFiles).toEqual([{ path: '/repo/a.txt', isDeleted: true, lines: 0 }])
+  expect(withoutFileDiffs(noHunks).changedFiles).toEqual([{ path: '/repo/a.txt', change: 'Deleted', added: 0, removed: 0 }])
 
-  expect(withoutWholeFiles(numbers(2))).toEqual({ output: numbers(2), wholeFiles: [] })
-  expect(withoutWholeFiles('text').output).toBe('text')
+  expect(withoutFileDiffs(numbers(2))).toEqual({ output: numbers(2), changedFiles: [] })
+  expect(withoutFileDiffs('text').output).toBe('text')
 })
 
-test('a deleted file is a line beneath the row, and the engine is not handed its contents', async ($, on) => {
+test('deleted and updated files are lines beneath the row, and the engine is not handed their diffs', async ($, on) => {
   stubRoot(on, '/repo')
   const handed: unknown[] = []
   stubRow(on, ({ output }) => {
@@ -320,8 +322,8 @@ test('a deleted file is a line beneath the row, and the engine is not handed its
   })
   const ui = await mountRow($, 'Bash', { input: { command: 'rm lorem.txt' }, output: deletion(true) })
   expect(await ui.find({ type: 'Text', text: 'Deleted lorem.txt -10' })).toBeDefined()
-  const files = (handed.at(-1) as { bashEditDiff: { files: { filePath: string }[] } }).bashEditDiff.files
-  expect(files.map(f => f.filePath)).toEqual(['/repo/kept.txt'])
+  expect(await ui.find({ type: 'Text', text: 'Updated kept.txt +1 -1' })).toBeDefined()
+  expect('bashEditDiff' in (handed.at(-1) as object)).toBe(false)
   await ui.unmount()
 })
 
@@ -342,7 +344,7 @@ test('the result beneath a deletion that printed nothing draws nothing', async (
   const bash = engine($, on)
   expect(await bash.drawsResult(deletion(false))).toBe(false)
   expect(await bash.drawsResult(creation())).toBe(false)
-  expect(await bash.drawsResult(deletion(true))).toBe(true)
+  expect(await bash.drawsResult(deletion(true))).toBe(false)
   expect(await bash.drawsResult({ ...deletion(false), ...numbers(1) })).toBe(true)
 })
 
@@ -370,11 +372,11 @@ const creation = () => ({
   },
 })
 
-test('withoutWholeFiles takes created files out of the diff with deleted ones, in order', () => {
-  const { output, wholeFiles } = withoutWholeFiles(creation())
-  expect(wholeFiles).toEqual([
-    { path: '/repo/new.txt', isDeleted: false, lines: 3 },
-    { path: '/repo/lorem.txt', isDeleted: true, lines: 10 },
+test('withoutFileDiffs takes created files out of the diff with deleted ones, in order', () => {
+  const { output, changedFiles } = withoutFileDiffs(creation())
+  expect(changedFiles).toEqual([
+    { path: '/repo/new.txt', change: 'Created', added: 3, removed: 0 },
+    { path: '/repo/lorem.txt', change: 'Deleted', added: 0, removed: 10 },
   ])
   expect('bashEditDiff' in (output as object)).toBe(false)
 })

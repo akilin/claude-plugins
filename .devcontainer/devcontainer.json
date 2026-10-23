@@ -3,8 +3,12 @@
     "build": {
         "dockerfile": "Dockerfile"
     },
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
     "mounts": [
-        "source=claude-code-config-${localWorkspaceFolderBasename}-${devcontainerId},target=/home/node/.claude,type=volume"
+        "source=claude-code-config-${localWorkspaceFolderBasename}-${devcontainerId},target=/home/node/.claude,type=volume",
+        "source=gh-config,target=/home/node/.config/gh,type=volume"
     ],
     "containerEnv": {
         "CLAUDE_CONFIG_DIR": "/home/node/.claude"

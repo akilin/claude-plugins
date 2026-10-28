@@ -68,6 +68,14 @@ npx -y -p typescript tsc -p tsconfig.json
 
 `tsc` needs the API types Claude Code writes to `.claude-plugin/types/` (gitignored) when it loads the plugin, so on a fresh clone load it once first, e.g. `claude --plugin-dir plugins/better-tool-rows`.
 
+## Heads up: this is vibecoded
+
+All of the code here was written by Claude. I glanced over it, but haven't reviewed it properly. I'm not proud of that, but I don't have the time or energy to go through it line by line, especially since it's been years since I touched js/ts.
+
+What made me OK with it: these plugins only change how things are drawn in the terminal. They don't touch what Claude Code sends to the model, what the model sends back, or which tools it runs. The worst realistic outcome is a UI glitch, and uninstalling the plugin fixes that. So I'd rather ship it as is than not ship it at all.
+
+That said, it's still code running on your machine. If that bothers you, skim it first (it's small) or skip it. No hard feelings.
+
 ## License
 
 MIT

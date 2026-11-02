@@ -16,7 +16,9 @@ Then run `/reload-plugins` in any open session, or restart it.
 
 ## Update
 
-From your shell:
+Claude code leaves auto-update off for third-party marketplaces, so plugins will stay on the version you installed. To turn it on, run /plugin, open the marketplaces tab, select akilin/claude-plugins, and choose enable auto-update. 
+
+To update once, manually, run from your shell:
 
 ```
 claude plugin update better-tool-rows@akilin-plugins
